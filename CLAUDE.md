@@ -257,6 +257,59 @@ distilled state so the next session doesn't re-derive it.
     (OpenCASCADE is no longer installed on this machine, so DRAWEXE could not be re-run).
     update() costs ~215 ms, of which multiChain is 169 ms (pre-existing); trimCurve is 2 ms.
 
+23. Developable TOPSIDES, chine -> authored sheer (2026-09-15, user: "it would be interesting to try
+    constructing topsides from the chine to an authored sheer", then "let's try wiring the sheer in with the
+    overlap check"). Pairing is the usual developable-loft condition det[A'(s), B'(t), B(t)-A(s)] = 0, traced
+    along the chine (= the trimmed edge, item 22b), picking the root nearest the previous one.
+    (a) FANS ARE FINE, AND FREE. Where the pairing jumps FORWARD, the uncovered piece of the sheer is spanned
+        by a cone fan whose apex is the chine point, and that fan is EXACTLY tangent-continuous with both
+        neighbours. Proof: the coplanarity condition on the panel's last ruling r says S'(t) lies in
+        span(T_chine, r), and the fan's tangent plane along that same ruling is span(r, S'(t)) - the same
+        plane. [numerical] folds 0.0000-0.0016 deg at the bow, all three seams and the transom.
+        => The chine's kinks do NOT crease the topside. Item 4's obstruction ("a polyline chine cannot bound a
+        G1 developable") really is gone now that the chine is a curve rather than straight segments.
+        The bow and the transom are fans of the same kind, so the stem line and the transom edge do NOT have to
+        be rulings and the sheer's end tangents are NOT constrained (unlike the keel at K_s, item 12).
+    (b) BACKWARD jumps are fatal: the sheer piece is covered twice, rulings cross, no developable.
+    [numerical, demo, default sheer] fans everywhere - bow +1.31 m of sheer, V1 +0.26, V2 +0.44, V3 +0.24,
+    transom +0.83 - with no backward steps inside a plate and nothing unpaired. Chine kinks 11.5 / 15.9 /
+    14.2 deg. Ruling rake -39 to +60 deg from transverse, i.e. very raked. So a single developable topside
+    DOES exist over the whole demo hull.
+    TRAP, and the reason for a wrong first answer: the two END samples of each plate's trim array ARE the
+    snapped seam corners, which sit a few mm off the true trim curve because the display seam is sampled at
+    res 12. One-sided tangents taken off those samples corrupt the kink and INVENT overlaps and backward
+    steps. Skip the first and last sample of each plate in the pairing. Before that fix the experiment
+    reported a -0.70 m overlap at seam V3 and I concluded "the chine's widest point must sit at or aft of the
+    last seam, or the topside must be split at that seam" - BOTH WRONG, do not repeat either.
+    IN THE TOOL the topsides are WALL-SIDED (2026-09-15, user: "let's force the topsides to be wallsided -
+    have the same plan curve as the chine"), which collapses all of the above to nothing:
+      the sheer shares the chine's plan curve g, so the ruling from E(x) up to S(x) is VERTICAL - S-E =
+      (0,0,h) makes det[E',S',S-E] = h*(g'-g') = 0 identically. The topside is therefore the vertical cylinder
+      over the plan curve trimmed between two height curves: DEVELOPABLE BY CONSTRUCTION whatever the bottom
+      does, with no pairing, no fans, no overlaps and nothing to check. [numerical] max |dx| and |dy| along a
+      ruling are 0 exactly. The general-loft machinery of (a)/(b) survives only in experiments/topsides.js.
+      Only the HEIGHT is authored: an approximating cubic B-spline over NCONE+1 (x,z) control points, dragged
+      in the profile canvas. Nothing of the sheer appears in the plan view, because it is the chine's own
+      plan curve. The only warning left is a sheer below the edge of the bottom.
+      UNROLLING IS EXACT AND TRIVIAL: (arc length along the plan curve, height). [numerical] developed 10.8170
+      m2 vs 3D 10.8171 m2, 0.000%. Drawn in a second row beneath the bottom plates at the same scale.
+      [numerical, demo] girth 10.175 m, height above the edge 85-119 cm.
+    IN THE STEP EXPORT (2026-09-15): one topside ADVANCED_FACE per plate per side, so 2N bottom + 2N topside
+    faces in the one OPEN_SHELL. Surface = the plan B-spline extruded vertically, i.e. an exact degree (3,1)
+    B_SPLINE_SURFACE_WITH_KNOTS whose u knots/multiplicities are the plan curve's own and whose two v columns
+    are the same control points at zlo and zhi. Loop = (trim edge, aft vertical, sheer arc, fwd vertical); the
+    trim edge is the SAME entity as the bottom face's, and the verticals and the sheer arcs are shared between
+    neighbouring topside faces. Port reverses u exactly as the bottom does. [numerical] 16 faces, 22 vertices,
+    38 edges, 0 unresolved refs, 179 kB; every loop counter-clockwise in (u,v) on both sides; the export's
+    trim/seam corners sit within 4 um of the extrusion profile.
+    GUARD: if the plan spline is CLAMPED to the chine anywhere (a concave run of the plan polyline) the edge is
+    no longer on the extruded surface, so the export refuses with the amount and what to do about it. Tested:
+    a dent at V2 refuses with "clamped to the chine by 188 mm".
+    update() is ~315 ms a frame, of which multiChain is 169 ms.
+    The state variable is `tops`, NOT `top`: a top-level `let top` is a SyntaxError in a browser because
+    window.top is an unforgeable property, and the node DOM stub does not model that, so it shipped once and
+    only showed up in the browser console. test/strict_dom_check.js now lints for it (below).
+
 ## Chosen design (user's decision, page 04)
 
 - Apexes pinned exactly on the centreplane (no keel fold).
@@ -341,6 +394,11 @@ z(x) with authored slope kB at K_s and k0 at the stem.
     - the STEP transom edge was a straight line from the chine vertex to the keel vertex; the transom boundary
       is the cone's SECTION there, which is only straight for a straight-V frame. Fixed 2026-09-14: it is now a
       cubic B-spline through the sampled section, like the seams.
+    - (2026-09-15) top-level `let top` in index.html: fine in node's function scope, SyntaxError in a
+      browser (window.top is unforgeable). Renamed to `tops`; the harness now lints for it.
+    - (2026-09-15) "a developable topside overlaps at seam V3, so the chine's widest point must be at or
+      aft of the last seam" - wrong twice over; an artefact of one-sided tangents taken off the snapped seam
+      corners. See item 23.
     - (2026-09-14, chat) "chord deadrise is a position-type parameter, same class as depth at a station" - wrong:
       on a cone it is a re-unit of the keel line's SLOPE, because both boundary curves are rulings through the apex
       and the angle is scale-invariant. Position-type only on a cylinder segment. See item 21.
@@ -371,16 +429,22 @@ authoring tool) from the main branch root (set up 2026-09-14).
   around how the chain of cones is constructed" (-> section 4) and flare (-> item 18).
   Page is assembled from scratch pieces (head/body/shared.js/figs.js) but is one file.
 - index.html (was pages/06-authoring.html)   AUTHORING TOOL. Rewritten 2026-09-14 to ONE mode (item 22).
-  Sections: (1) keel, plan and trim: profile canvas with draggable keel vertices (x and z, both authored),
-  the derived chine drawn as a dashed construction line whose vertices drag to shear (st.z1), and the edge's
-  DERIVED profile drawn heavy; plan canvas with the edge's approximating B-spline drawn heavy, its control
+  Sections: (1) keel, plan and trim: profile canvas (340 px) showing ONLY the authored keel and sheer, with the
+  derived edge of the bottom faint behind them and no handles on it (2026-09-15, user: "simplify the profile
+  view to only show keel and sheer ... make it a bit higher", then "show it but as a faded line and with no
+  vertices and not the long text"); the construction chine polyline and the K->V frame-plane traces are gone.
+  The shear st.z1 is the keel's one free number and had nowhere left to be dragged, so it is a DEADRISE SLIDER
+  in the profile bar: it reads back der.bet[0] every update and writes
+  st.z1 = L_0(x_1) + y_1*tan(beta), which is exact. Because the shear adds lambda to every cone's tan(beta)
+  at once (item 21), one slider moves them together and preserves their differences - [numerical] with a raked
+  keel, plates at 37.57/37.57/40.23/40.23 deg go to 44.99/44.99/47.11/47.11, every tan shifted by 0.2306; plan canvas with the edge's approximating B-spline drawn heavy, its control
   points draggable - which ARE the chine vertices, drawn hollow with the control polygon dashed behind; (2) frames: body plan, drag the two handles per frame, "reset all to round",
   the part of each frame beyond the trim drawn faint with the trim point marked; (3) shaded 3D, quads clipped
   at the trim, orbit/wheel-zoom/shift-pan, NO overlay lines at all unless "lines" is ticked (2026-09-15, user:
   "the chine line on the 3d view is not needed" - the trimmed edge used to be drawn unconditionally);
   (4) unrolled plates, outline cut at the trim. The readout colours only the WARNING lines, not the whole block.
-  State {plan, keel, z1, frames} as JSON + localStorage 'hull-cones-09' (key bumped each time the shape
-  changed; '-06' through '-08' state is not readable).
+  State {plan, keel, sheer, z1, frames} as JSON + localStorage 'hull-cones-11' (key bumped each time the
+  shape changed; '-06' through '-10' state is not readable). sheer = NCONE+1 (x,z) control points.
   STEP EXPORT: AP214, metres, one OPEN_SHELL of 2N ADVANCED_FACEs. Each plate is still an exact
   B_SPLINE_SURFACE_WITH_KNOTS degree (3,1) (frame Bezier control net mapped by the homothety about the apex,
   or translated along the cylinder direction, at two ruling parameters +2% margin; the stem cone keeps lam0=0).
@@ -399,6 +463,8 @@ authoring tool) from the main branch root (set up 2026-09-14).
 - pages/07-chord-deadrise.html  chord deadrise: what the angle is in section, that it is constant per cone,
   and the one-beta-per-cone chart (item 21), 2026-09-14. Self-contained; carries its own small copy of the chine /
   keel / frame-Bezier / cone-section geometry (not the full shared JS of pages 05-06).
+- experiments/topsides.js   developable topsides, chine -> authored sheer (item 23); run as
+  `node test/strict_dom_check.js index.html experiments/topsides.js`
 - experiments/seam_tilt_fold.py    seam tilt vs fold angle (numpy)
 - experiments/refine_polyline_chine.py   refinement experiment (item 7)
 - experiments/forward_loft.py   hybrid forward-loft pairing prototype (items 11-16); ~5 min
@@ -406,7 +472,9 @@ authoring tool) from the main branch root (set up 2026-09-14).
 - experiments/forward_loft.js   node port of the above (runHybrid), same numbers, ~50 ms/case;
   `node experiments/forward_loft.js` prints the cross-check table
 - test/strict_dom_check.js   node harness: evals a page's script with a DOM
-  stub that only knows ids present in the HTML (or injected via innerHTML);
+  stub that only knows ids present in the HTML (or injected via innerHTML). Also lints top-level
+  declarations that shadow window properties: FATAL for the unforgeable ones (window, document, location,
+  top), WARNING for the rest - the stub runs in function scope so the engine cannot catch those itself;
   `node test/strict_dom_check.js index.html`. Concatenates all
   <script> blocks, reads slider/select defaults from the HTML, optional 3rd arg = extra JS
   to run after the page (used for numeric cross-checks). Page 04 prints MISSING b0/b4:

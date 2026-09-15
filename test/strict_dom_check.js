@@ -17,4 +17,24 @@ const mk=(id)=>({value:defaults[id]??0,textContent:"",checked:true,style:{},data
   set innerHTML(h){[...h.matchAll(/id="([^"]+)"/g)].forEach(m=>dyn.add(m[1]));},get innerHTML(){return ""}});
 global.document={getElementById:id=>{if(!ids.has(id)&&!dyn.has(id)){console.log("MISSING element id:",id);return null;}return els[id]||(els[id]=mk(id));},querySelectorAll:()=>[]};
 global.window={devicePixelRatio:1,addEventListener(){}};
+// top-level declarations that collide with an unforgeable window property are a SyntaxError in a browser
+// but not in node's function scope, so lint for them (this is how `let top` shipped once).
+const HARD=new Set(["window","document","location","top"]);
+const SOFT=new Set(["self","parent","frames","name","length","status","closed","origin","event","history","navigator","screen","opener"]);
+{const names=[];
+ for(const line of s.split("\n")){
+  let m=/^(?:function|class)\s+([A-Za-z_$][\w$]*)/.exec(line);
+  if(m){names.push(m[1]);continue;}
+  m=/^(?:let|const|var)\s+(.*)$/.exec(line);
+  if(!m)continue;
+  let d=0,tok="",expect=true;
+  for(const c of m[1]){
+   if("([{".includes(c))d++;else if(")]}".includes(c))d--;
+   if(d===0&&c===","){expect=true;tok="";continue;}
+   if(d===0&&(c==="="||c===";")){if(expect&&tok.trim())names.push(tok.trim());expect=false;tok="";continue;}
+   if(expect)tok+=c;}
+  if(expect&&tok.trim())names.push(tok.trim());}
+ for(const n of names){
+  if(HARD.has(n))console.log("FATAL: top-level `"+n+"` shadows an unforgeable window property (SyntaxError in a browser)");
+  else if(SOFT.has(n))console.log("WARNING: top-level `"+n+"` shadows a window property");}}
 try{eval(s);console.log("ran OK");}catch(e){console.log("ERROR:",e.stack.split("\n").slice(0,3).join("\n"));}

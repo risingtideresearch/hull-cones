@@ -60,9 +60,9 @@
 <h1>Cone-chain bottom: authoring tool</h1>
 
 <h2>Keel, plan and trim</h2>
-<div class="bar"><span>Profile. <b style="color:#8a4fbf">Keel</b> vertices: drag anywhere. <span style="color:#98a4ab">Chine</span> is derived — drag a vertex to shear the whole chine. The heavy line is the edge of the bottom, also derived: shape it in the plan below.</span><button id="resetKeel">reset keel</button></div>
-<canvas id="prof" style="height:260px;cursor:crosshair"></canvas>
-<div class="bar" style="margin-top:8px"><span>Plan. Drag the chine vertices for half-breadth and station. The dashed polyline is the construction chine that sets the cones; the heavy curve is the edge of the bottom — the approximating cubic B-spline those same points control.</span><button id="resetPlan">reset plan</button></div>
+<div class="bar"><span>Profile: <b style="color:#8a4fbf">keel</b> and <b style="color:#b8860b">sheer</b>, both authored — drag their points. The faint line between them is the derived edge of the bottom.</span><label style="flex:0 0 200px">deadrise <input type="range" id="dr" min="5" max="60" step="0.5" value="37.6"><span class="v" id="drv"></span></label><button id="resetKeel">reset keel</button><button id="resetSheer">reset sheer</button></div>
+<canvas id="prof" style="height:340px;cursor:crosshair"></canvas>
+<div class="bar" style="margin-top:8px"><span>Plan. Drag the chine vertices for half-breadth and station. The dashed polyline is the construction chine that sets the cones; the heavy curve is the edge of the bottom — the approximating cubic B-spline those same points control. The topsides are <b>wall-sided</b>: the sheer shares this same plan curve, so they are a vertical cylinder over it and developable whatever the bottom does.</span><button id="resetPlan">reset plan</button></div>
 <canvas id="plan" style="height:210px;cursor:crosshair"></canvas>
 <pre class="info" id="info"></pre>
 
@@ -76,7 +76,7 @@
 
 <h2>Plates</h2>
 <div class="bar"><button id="stepBtn">export STEP (AP214, metres)</button><span id="stepMsg"></span></div>
-<p class="key" style="margin:0 0 4px"><i style="background:#1e2a30"></i>trimmed edge <i style="background:#8a4fbf"></i>keel <i style="background:#c8512a"></i>seams <i style="background:#2b6cb0"></i>frame of the plate</p>
+<p class="key" style="margin:0 0 4px"><i style="background:#1e2a30"></i>trimmed edge <i style="background:#8a4fbf"></i>keel <i style="background:#c8512a"></i>seams <i style="background:#2b6cb0"></i>frame of the plate <i style="background:#b8860b"></i>sheer</p>
 <canvas id="unroll" style="height:300px"></canvas>
 
 <div class="group" style="margin-top:22px"><h4>State <span>(JSON)</span></h4>
@@ -209,10 +209,12 @@ const KEEL0=[[0,0.9],[2.5,-0.30384615],[5,-0.9],[7.5,-0.95],[10,-0.54230769]];
 const Z1_0=0.35, NCONE=PLAN0.length-1;
 const DEMO=[{thK:20,aK:0.35,thC:10,aC:0.35},{thK:10,aK:0.35,thC:40,aC:0.25},{thK:0,aK:0.32,thC:90,aC:0.09},{thK:0,aK:0.2,thC:90,aC:0.05}];
 const cp=o=>JSON.parse(JSON.stringify(o));
-let st={plan:cp(PLAN0),keel:cp(KEEL0),z1:Z1_0,frames:cp(DEMO)};
-try{const sv=localStorage.getItem('hull-cones-09');if(sv){const o=JSON.parse(sv);
- if(o&&o.plan&&o.keel&&o.frames&&o.frames.length===NCONE&&o.plan.length===NCONE+1)st=o;}}catch(e){}
-let cur=0,ch=null,mesh=null,der=null,trims=null,seamT=null,bad=new Set();
+const SHEER0=[[0,1.75],[2.5,1.35],[5,1.05],[7.5,1.05],[10,1.25]];   // (x, z) only: the topsides are wall-sided
+let st={plan:cp(PLAN0),keel:cp(KEEL0),sheer:cp(SHEER0),z1:Z1_0,frames:cp(DEMO)};
+try{const sv=localStorage.getItem('hull-cones-11');if(sv){const o=JSON.parse(sv);
+ if(o&&o.plan&&o.keel&&o.frames&&o.frames.length===NCONE&&o.plan.length===NCONE+1){st=o;
+  if(!st.sheer||st.sheer[0].length!==2)st.sheer=cp(SHEER0);}}}catch(e){}
+let cur=0,ch=null,mesh=null,der=null,trims=null,seamT=null,tops=null,bad=new Set();
 function loadPanel(){}
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const r2=x=>Math.round(x*1000)/1000;
@@ -287,6 +289,24 @@ function crossG(pts,gof){ // first point of a chine-end-first boundary polyline 
  return null;}
 function areaOf(p){let a=0;for(let i=1;i+1<p.length;i++)a+=norm(cross(sub(p[i],p[0]),sub(p[i+1],p[0])))/2;return a;}
 
+// ---- topsides: WALL-SIDED. The sheer shares the chine's plan curve, so every ruling from the edge of the
+// bottom E(x) up to the sheer S(x) is VERTICAL: det[E',S',S-E] with S-E = (0,0,h) is h*(g'-g') = 0 identically.
+// The surface is therefore the vertical cylinder over the plan curve, trimmed between the two height curves --
+// developable whatever the chine does, with no pairing, no fans and no overlaps to check. Only the height is
+// authored, as an approximating cubic B-spline over (x,z) control points. Unrolling is (arc length, z).
+function topsides(){
+ if(!trims||!trims.length)return null;
+ const bs=bspline(st.sheer),warns=[],zS=X=>bs.yAt(X);
+ const rulings=[],poly3=[];let low=1e9,hi=-1e9;
+ trims.forEach(t=>t.forEach(e=>{const A=e.Q,B=[A[0],A[1],zS(A[0])];
+  rulings.push([A,B]);poly3.push(B);low=Math.min(low,B[2]-A[2]);hi=Math.max(hi,B[2]-A[2]);}));
+ if(low<0)warns.push('topsides: the sheer falls '+fmt(-low*100,0)+' cm below the edge of the bottom');
+ // arc length along the plan curve, for the flat pattern
+ const L=st.plan[NCONE][0],M=600,xs=[],ss=[];let acc=0,py=null;
+ for(let i=0;i<=M;i++){const X=L*i/M,Y=der.g(X);if(py!==null)acc+=Math.hypot(X-xs[i-1],Y-py);xs.push(X);ss.push(acc);py=Y;}
+ const arc=X=>{const i=clamp(X/L,0,1)*M,i0=Math.min(M-1,Math.floor(i)),f=i-i0;return ss[i0]+(ss[i0+1]-ss[i0])*f;};
+ return{bs,zS,rulings,poly3,arc,span:acc,drop:[low,hi],warns};}
+
 // ---- generic drag handling on a 2D canvas: handles = [{p:[px,py], on:(px,py)=>void}]
 function dragger(cv,getHandles){let h=null;const pos=e=>{const r=cv.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return[t.clientX-r.left,t.clientY-r.top];};
  const pick=px=>{let best=null;for(const hd of getHandles()){const d=Math.hypot(hd.p[0]-px[0],hd.p[1]-px[1]);if(d<12&&(!best||d<best.d))best={hd,d};}return best?best.hd:null;};
@@ -304,21 +324,22 @@ function drawProf(){const[ctx,W,H]=prep(g('prof'));const{sc,ox}=xScale(W);const 
  const line=(pts,col,w,dash)=>{if(pts.length<2)return;ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;ctx.setLineDash(dash||[]);pts.forEach((q,i)=>{const s=T(q);i?ctx.lineTo(s[0],s[1]):ctx.moveTo(s[0],s[1]);});ctx.stroke();ctx.setLineDash([]);};
  ctx.font='12px system-ui, sans-serif';line([[-0.3,0,0],[L+0.3,0,0]],'#eceeef',1);ctx.fillStyle=C.muted;ctx.fillText('z=0',W-40,T([0,0,0])[1]-4);
  for(let v=0;v<=NCONE;v++)line([[st.plan[v][0],0,zmin],[st.plan[v][0],0,zmax]],'#eef1f2',1,[3,4]);
- for(let j=0;j<NCONE;j++)line([der.kv[j+1],der.V[j+1]],bad.has(j)?C.warn:(j===cur?C.master:'#dbe4ea'),j===cur?1.6:1,[5,4]);
- line(der.V,'#b8c2c8',1.6,[6,4]);                              // derived chine: construction line
  line(der.kv,C.keel,2);
- if(trims)trims.forEach(t=>line(t.map(e=>[e.Q[0],0,e.Q[2]]),C.ink,2.4));   // derived: the edge's profile
+ if(trims)trims.forEach(t=>line(t.map(e=>[e.Q[0],0,e.Q[2]]),'#c3ccd2',1.3));   // derived: the edge's profile, for reference only
  profH.length=0;
- der.V.forEach((p,v)=>{const s=T(p);ctx.beginPath();ctx.arc(s[0],s[1],4,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#b8c2c8';ctx.lineWidth=1.6;ctx.stroke();
-  ctx.fillStyle='#98a4ab';ctx.fillText('V'+v+' z '+fmt(p[2]),s[0]+7,s[1]-7);
-  if(v>0)profH.push({p:s,on:(px,py)=>{const z=(oy-py)/scz;st.z1=r2(st.z1+(z-der.z[v])*der.y[1]/Math.max(der.y[v],1e-6));update();}});});
+
  der.kv.forEach((k,v)=>{const s=T(k);ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(s[0],s[1],5.5,0,7);ctx.fill();ctx.strokeStyle=C.keel;ctx.lineWidth=2;ctx.stroke();
   ctx.fillStyle=C.keel;ctx.fillText('K'+v+'  '+fmt(k[0])+', '+fmt(k[2]),s[0]+8,s[1]+15);
   profH.push({p:s,on:(px,py)=>{const x=(px-ox)/sc,z=(oy-py)/scz;
    if(v>0&&v<NCONE)st.keel[v][0]=r2(clamp(x,st.keel[v-1][0]+0.2,st.keel[v+1][0]-0.2));
    st.keel[v][1]=r2(z);update();}});});
- if(trims&&trims[0]&&trims[0].length){const e=trims[0][Math.floor(trims[0].length/2)];const s=T([e.Q[0],0,e.Q[2]]);
-  ctx.fillStyle=C.muted;ctx.fillText('edge of the bottom (derived — shape it in the plan below)',s[0]+8,s[1]+16);}}
+ line(st.sheer.map(q=>[q[0],0,q[1]]),'#e2d2a8',1,[3,3]);
+ if(tops)line(tops.bs.poly.map(q=>[q[0],0,q[1]]),C.fwd,2.2);
+ st.sheer.forEach((q,v)=>{const s2=T([q[0],0,q[1]]);ctx.beginPath();ctx.arc(s2[0],s2[1],5,0,7);ctx.fillStyle=C.fwd;ctx.fill();
+  profH.push({p:s2,on:(px,py)=>{const x=(px-ox)/sc,z=(oy-py)/scz;
+   if(v>0&&v<NCONE)q[0]=r2(clamp(x,st.sheer[v-1][0]+0.2,st.sheer[v+1][0]-0.2));q[1]=r2(z);update();}});});
+ if(tops){const s2=T([st.sheer[1][0],0,st.sheer[1][1]]);ctx.fillStyle=C.fwd;ctx.fillText('sheer',s2[0]+9,s2[1]-9);}
+ {const k=T(der.kv[1]);ctx.fillStyle=C.keel;ctx.fillText('keel',k[0]+9,k[1]+16);}}
 function drawPlan(){const[ctx,W,H]=prep(g('plan'));const{sc,ox}=xScale(W);const L=st.plan[NCONE][0];
  const ymax=Math.max(1.4,...st.plan.map(p=>p[1]))+0.15;const scy=Math.min(sc,(H-24)/ymax);const oy=H-12;const T=p=>[ox+sc*p[0],oy-scy*p[1]];
  const line=(pts,col,w,dash)=>{if(pts.length<2)return;ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;ctx.setLineDash(dash||[]);pts.forEach((q,i)=>{const s=T(q);i?ctx.lineTo(s[0],s[1]):ctx.moveTo(s[0],s[1]);});ctx.stroke();ctx.setLineDash([]);};
@@ -370,6 +391,11 @@ function meshQuadsTrim(msh,gof,col){const it=[];msh.forEach(rows=>{
   for(let k=0;k+1<r0.length;k++){const q=clipG([r0[k],r0[k+1],r1[k+1],r1[k]],gof);if(!q)continue;
    it.push({t:'quad',pts:q,col});it.push({t:'quad',pts:q.map(mirror),col});}}});return it;}
 const v3=new View3D('v3',()=>{const it=[];it.push(...meshQuadsTrim(mesh,der.gof,[200,207,214]));
+ if(tops&&tops.rulings.length>1){const R=tops.rulings,col=[208,201,188];
+  for(let i=0;i+1<R.length;i++){const q=[R[i][0],R[i][1],R[i+1][1],R[i+1][0]];
+   it.push({t:'quad',pts:q,col});it.push({t:'quad',pts:q.map(mirror),col});}
+  if(g('rul').checked)for(let i=0;i<R.length;i+=3)both(it,R[i],C.fwd,0.7);
+  if(g('lines3d').checked)both(it,tops.poly3,C.fwd,2);}
  if(g('rul').checked)for(let j=0;j<NCONE;j++){const b=ch.bounds[j];for(let i=0;i<=KI;i+=2){const a=b.fwd[i],c=b.aft[i];if(!a||!c)continue;
   let run=[];for(let k=0;k<=24;k++){const Q=lerp(a,c,k/24);if(der.gof(Q)<=0)run.push(Q);else{if(run.length>1)both(it,run,j===cur?C.ruling:'#a9c7bd',0.8);run=[];}}
   if(run.length>1)both(it,run,j===cur?C.ruling:'#a9c7bd',0.8);}}
@@ -414,16 +440,34 @@ function drawUnroll(){const[ctu,W,H]=prep(g('unroll'));const plates=[];const gof
   const all=out;plates.push({j,out,rul,frl,keel,
    sa:fw.map(e=>fm(e.p,e.u)),sb:af.map(e=>fm(e.p,e.u)),tr:tc.map(e=>fm(e.Q,e.u)),
    mnx:Math.min(...all.map(p=>p[0])),mxx:Math.max(...all.map(p=>p[0])),mny:Math.min(...all.map(p=>p[1])),mxy:Math.max(...all.map(p=>p[1]))});}
- const ok=plates.filter(p=>p);if(!ok.length)return;let xoff=0;const gap=0.4,gmn=Math.min(...ok.map(p=>p.mny)),gmx=Math.max(...ok.map(p=>p.mxy));
+ const ok=plates.filter(p=>p);if(!ok.length)return;let xoff=0;const gap=0.4;
  for(const p of ok){p.off=xoff-p.mnx;xoff+=p.mxx-p.mnx+gap;}
- const sc2=Math.min((W-30)/xoff,(H-40)/Math.max(gmx-gmn,0.3));const ox=15,oy=H/2-sc2*(gmn+gmx)/2+6;const T=(p,off)=>[ox+sc2*(p[0]+off),oy+sc2*p[1]];
- const poly=(pts,off,col,w,dash)=>{if(pts.length<2)return;ctu.beginPath();ctu.strokeStyle=col;ctu.lineWidth=w;ctu.setLineDash(dash||[]);pts.forEach((p,i)=>{const q=T(p,off);i?ctu.lineTo(q[0],q[1]):ctu.moveTo(q[0],q[1]);});ctu.stroke();ctu.setLineDash([]);};
+ const gmn=Math.min(...ok.map(p=>p.mny)),gmx=Math.max(...ok.map(p=>p.mxy));
+ // the wall-sided topside unrolls exactly as (arc length along the plan curve, height)
+ let TP=null;
+ if(tops){const bot=[],top2=[];
+  trims.forEach(t=>t.forEach(e=>{const X=e.Q[0],a=tops.arc(X);bot.push([a,-e.Q[2]]);top2.push([a,-tops.zS(X)]);}));
+  if(bot.length>2){const out=bot.concat([top2[top2.length-1]],top2.slice().reverse(),[bot[0]]);
+   const rl=[];for(let i=0;i<bot.length;i+=8)rl.push([bot[i],top2[i]]);
+   const all=bot.concat(top2);
+   TP={out,bot,top:top2,rl,mnx:Math.min(...all.map(q=>q[0])),mxx:Math.max(...all.map(q=>q[0])),
+       mny:Math.min(...all.map(q=>q[1])),mxy:Math.max(...all.map(q=>q[1]))};}}
+ const bandH=gmx-gmn, topH=TP?TP.mxy-TP.mny:0, vgap=TP?0.35:0;
+ const sc2=Math.min((W-30)/Math.max(xoff,TP?TP.mxx-TP.mnx:0,0.3),(H-44)/Math.max(bandH+vgap+topH,0.3));
+ const ox=15,oy=18-sc2*gmn;const T=(p,off,vo)=>[ox+sc2*(p[0]+off),oy+sc2*(p[1]+(vo||0))];
+ const poly=(pts,off,col,w,dash,vo)=>{if(pts.length<2)return;ctu.beginPath();ctu.strokeStyle=col;ctu.lineWidth=w;ctu.setLineDash(dash||[]);pts.forEach((p,i)=>{const q=T(p,off,vo);i?ctu.lineTo(q[0],q[1]):ctu.moveTo(q[0],q[1]);});ctu.stroke();ctu.setLineDash([]);};
  ctu.font='12px system-ui, sans-serif';
  for(const p of ok){if(g('rul').checked)p.rul.forEach((r,i)=>{if(i%2===0)poly(r,p.off,C.ruling,0.6);});
   poly(p.tr,p.off,C.ink,1.8);poly(p.keel,p.off,C.keel,1.8);
   poly(p.sa,p.off,p.j>0?C.seam:C.muted,1.6);poly(p.sb,p.off,p.j+1<NCONE?C.seam:C.muted,1.6);
   poly(p.frl,p.off,bad.has(p.j)?C.warn:C.master,p.j===cur?1.8:0.9,[4,3]);
   const q=T([p.mnx,p.mny],p.off);ctu.fillStyle=C.muted;ctu.fillText('V'+p.j+'–V'+(p.j+1),q[0]+4,q[1]-8);}
+ if(TP){const vo=gmx-gmn+vgap-TP.mny+gmn,off=-TP.mnx;
+  if(g('rul').checked)TP.rl.forEach(r=>poly(r,off,C.ruling,0.6,null,vo));
+  poly(TP.bot,off,C.ink,1.8,null,vo);poly(TP.top,off,C.fwd,1.8,null,vo);
+  poly([TP.bot[0],TP.top[0]],off,C.muted,1.6,null,vo);
+  poly([TP.bot[TP.bot.length-1],TP.top[TP.top.length-1]],off,C.muted,1.6,null,vo);
+  const q=T([TP.mnx,TP.mxy],off,vo);ctu.fillStyle=C.muted;ctu.fillText('topside (wall-sided)',q[0]+4,q[1]-6);}
  const missing=plates.map((p,j)=>p?null:j).filter(j=>j!==null);
  if(missing.length){ctu.fillStyle=C.warn;ctu.fillText('not unrolled (seam or trim missing): plate '+missing.map(j=>'V'+j+'–V'+(j+1)).join(', '),20,H-10);}}
 
@@ -502,6 +546,32 @@ function stepText(){const res=96;/* 96 rulings keeps an interpolated seam within
     loop.push(j<N-1?OE(SM[j+1],false):OE(TRA,false));loop.push(OE(TE,false));}
    const el=E("EDGE_LOOP('',("+loop.join(',')+"))");const fb=E("FACE_OUTER_BOUND('',"+el+",.T.)");
    faces.push(E("ADVANCED_FACE('plate V"+j+"-V"+(j+1)+(side==='s'?" stbd":" port")+"',("+fb+"),"+surf+",.T.)"));}}
+ // ---- topsides: wall-sided, so the surface is exactly the plan B-spline extruded vertically.
+ // One face per plate, sharing the trim edge with the bottom face below it and the stem/seam verticals
+ // with its neighbours.
+ if(tops){const Lx=Vc[N][0],rawp=bspline(st.plan),zS=tops.zS;let outs=0;
+  for(let i=0;i<=400;i++){const X=Lx*i/400;outs=Math.max(outs,rawp.yAt(X)-der.yCh(X));}
+  if(outs>1e-4)throw new Error('the plan spline is clamped to the chine by '+fmt(outs*1000,0)+' mm, so the extruded topside would not meet its own edge; pull the chine vertices out or ease the concave run');
+  const zlo=Math.min(...Vc.map(q=>q[2]),...kv.map(q=>q[2]))-0.2,zhi=Math.max(...st.sheer.map(q=>q[1]))+0.2;
+  const P2=st.plan,n2=P2.length,U2=[0,0,0,0];for(let i=1;i<=n2-4;i++)U2.push(i/(n2-3));U2.push(1,1,1,1);
+  const kn2=[],mu2=[];for(let i=0;i<U2.length;i++){if(kn2.length&&Math.abs(U2[i]-kn2[kn2.length-1])<1e-12)mu2[mu2.length-1]++;else{kn2.push(U2[i]);mu2.push(1);}}
+  const Sh=T.map(q=>[q[0],q[1],zS(q[0])]),vS=[],vP=[],hS=[],hP=[];
+  for(let v=0;v<=N;v++){vS[v]=EDGE(VTX(T[v]),VTX(Sh[v]),lineCurve(T[v],Sh[v]));
+   vP[v]=EDGE(VTX(mir(T[v])),VTX(mir(Sh[v])),lineCurve(mir(T[v]),mir(Sh[v])));}
+  for(let j=0;j<N;j++){const x0=T[j][0],x1=T[j+1][0],pts=[];
+   for(let i=0;i<=48;i++){const X=x0+(x1-x0)*i/48;pts.push([X,der.g(X),zS(X)]);}
+   pts[0]=Sh[j].slice();pts[pts.length-1]=Sh[j+1].slice();const pd=dedupe(pts);
+   pd[0]=Sh[j].slice();pd[pd.length-1]=Sh[j+1].slice();
+   hS[j]=EDGE(VTX(Sh[j]),VTX(Sh[j+1]),splineCurve(interpCubic(pd)));
+   hP[j]=EDGE(VTX(mir(Sh[j])),VTX(mir(Sh[j+1])),splineCurve(interpCubic(pd.map(mir))));}
+  for(let j=0;j<N;j++)for(const side of['s','p']){const M=side==='s'?(q=>q):mir;
+   const CP2=side==='s'?P2:P2.slice().reverse();   // port: reverse u so the loop below stays counter-clockwise
+   const rows=CP2.map(q=>'('+P3(M([q[0],q[1],zlo]))+','+P3(M([q[0],q[1],zhi]))+')');
+   const surf=E("B_SPLINE_SURFACE_WITH_KNOTS('',3,1,("+rows.join(',')+"),.UNSPECIFIED.,.F.,.F.,.F.,("+mu2.join(',')+"),(2,2),("+kn2.map(R).join(',')+"),(0.0,1.0),.UNSPECIFIED.)");
+   const loop=side==='s'?[OE(trimE.s[j],true),OE(vS[j+1],true),OE(hS[j],false),OE(vS[j],false)]
+                        :[OE(vP[j],true),OE(hP[j],true),OE(vP[j+1],false),OE(trimE.p[j],false)];
+   const el=E("EDGE_LOOP('',("+loop.join(',')+"))");const fb=E("FACE_OUTER_BOUND('',"+el+",.T.)");
+   faces.push(E("ADVANCED_FACE('topside V"+j+"-V"+(j+1)+(side==='s'?" stbd":" port")+"',("+fb+"),"+surf+",.T.)"));}}
  const shell=E("OPEN_SHELL('',("+faces.join(',')+"))");const model=E("SHELL_BASED_SURFACE_MODEL('',("+shell+"))");
  const org=P3([0,0,0]),dz=E("DIRECTION('',(0.0,0.0,1.0))"),dx=E("DIRECTION('',(1.0,0.0,0.0))"),ax=E("AXIS2_PLACEMENT_3D('',"+org+","+dz+","+dx+")");
  const lu=E("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT($,.METRE.))"),au=E("(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.))"),su=E("(NAMED_UNIT(*)SI_UNIT($,.STERADIAN.)SOLID_ANGLE_UNIT())");
@@ -510,7 +580,7 @@ function stepText(){const res=96;/* 96 rulings keeps an interpolated seam within
  const rep=E("MANIFOLD_SURFACE_SHAPE_REPRESENTATION('bottom',("+ax+","+model+"),"+ctx+")");
  const pd=E("PRODUCT_DEFINITION_CONTEXT('',"+E("APPLICATION_CONTEXT('automotive design')")+",'design')");
  const now=new Date().toISOString().replace(/\.\d+Z$/,'');
- return"ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('cone-chain hull bottom, trimmed'),'2;1');\n"+
+ return"ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('cone-chain hull bottom + wall-sided topsides'),'2;1');\n"+
   "FILE_NAME('bottom.step','"+now+"',(''),(''),'hull-cones','hull-cones','');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 3 1 1 }'));\nENDSEC;\nDATA;\n"+
   ents.join('\n')+"\nENDSEC;\nEND-ISO-10303-21;\n";}
 
@@ -531,6 +601,9 @@ function update(){
  trims.forEach((t,j)=>{if(!t.length)return;
   for(const[i,v]of[[0,j],[t.length-1,j+1]]){const S=seamT[v];if(!S)continue;
    const u=uTrim(ch.cones[j],S[0],der.g);t[i]={Q:S.slice(),u:u===null?t[i].u:u,X:S[0]};}});
+ trims=trims.map(t=>{if(t.length<3)return t;const a=t[0].X,b=t[t.length-1].X;   // the snapped corner can sit a few mm
+  return[t[0]].concat(t.slice(1,-1).filter(e=>e.X>a+1e-9&&e.X<b-1e-9),[t[t.length-1]]);});  // inside the sampled run  // inside the sampled run
+ tops=topsides();if(tops)ch.warns=ch.warns.concat(tops.warns);
  bad=new Set();for(const w of ch.warns){let m=/^seam V(\d+)/.exec(w);if(m){bad.add(+m[1]-1);bad.add(+m[1]);}m=/^frame of cone V(\d+)/.exec(w);if(m)bad.add(+m[1]);}
  const cut=[];mesh.forEach(rows=>{let A=0,B=0;
   for(let i=0;i+1<rows.length;i++){const r0=rows[i],r1=rows[i+1];if(!r0||!r1)continue;
@@ -548,16 +621,21 @@ function update(){
   const sl=(a,b)=>(b[2]-a[2])/Math.max(b[0]-a[0],1e-9);
   kk.push(fmt(deg(Math.atan(sl(B[1].Q,B[4].Q))-Math.atan(sl(A[A.length-5].Q,A[A.length-2].Q))),1)+'°');}
  s+='edge: plan is the spline by construction; its PROFILE kinks at the seams by '+kk.join(' ')+'\n';
+ if(tops)s+='topsides: wall-sided, so a vertical cylinder over the plan curve — developable by construction. '+
+   'Height above the edge '+fmt(tops.drop[0]*100,0)+'–'+fmt(tops.drop[1]*100,0)+' cm, girth '+fmt(tops.span,2)+' m.\n';
  for(let v=1;v<ch.N;v++){const sm=ch.seams[v];
   s+='seam V'+v+': excursion '+fmt(100*sm.exc,0)+' cm, fold '+(sm.fold.length?fmt(Math.min(...sm.fold),1)+'–'+fmt(Math.max(...sm.fold),1)+'°':'n/a')+'\n';}
+ g('dr').value=fmt(der.bet[0],1);g('drv').textContent=fmt(der.bet[0],1)+'°';
  const esc=t=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;');
  g('info').innerHTML=esc(s)+ch.warns.map(w=>'<span class="w">WARNING: '+esc(w)+'</span>\n').join('');
  g('info').style.color='';
- g('state').value=JSON.stringify(st);try{localStorage.setItem('hull-cones-09',JSON.stringify(st));}catch(e){}
+ g('state').value=JSON.stringify(st);try{localStorage.setItem('hull-cones-11',JSON.stringify(st));}catch(e){}
  drawProf();drawPlan();drawBP();v3.draw();drawUnroll();}
 g('resetRound').addEventListener('click',()=>{st.frames=st.frames.map(()=>cp(FRAMES.round));update();});
 g('resetKeel').addEventListener('click',()=>{st.keel=cp(KEEL0);st.z1=Z1_0;update();});
 g('resetPlan').addEventListener('click',()=>{st.plan=cp(PLAN0);st.z1=Z1_0;update();});
+g('resetSheer').addEventListener('click',()=>{st.sheer=cp(SHEER0);update();});
+g('dr').addEventListener('input',()=>{st.z1=r2(der.kl[0].z(der.x[1])+der.y[1]*Math.tan(val('dr')*Math.PI/180));update();});
 g('apply').addEventListener('click',()=>{try{const o=JSON.parse(g('state').value);
  if(o.plan&&o.keel&&o.frames&&o.frames.length===NCONE&&o.plan.length===NCONE+1){st=o;update();}
  else alert('state needs plan and keel ('+(NCONE+1)+' vertices each) and '+NCONE+' frames');}catch(e){alert('invalid JSON: '+e.message);}});
