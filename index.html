@@ -355,8 +355,8 @@ function drawBP(){const[ctx,W,H]=prep(bp);const ymin=-0.12,ymax=Math.max(1.5,...
    for(const h of[k1,c1]){const s=T(h);ctx.beginPath();ctx.arc(s[0],s[1],6,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=fcol;ctx.lineWidth=2;ctx.stroke();}
    const fr=st.frames[j];ctx.fillStyle=fcol;ctx.fillText('keel '+fr.thK.toFixed(0)+'° × '+fr.aK.toFixed(2),T(k1)[0]+9,T(k1)[1]+4);ctx.fillText('chine '+fr.thC.toFixed(0)+'° × '+fr.aC.toFixed(2),T(c1)[0]+9,T(c1)[1]+4);
    const yz=(px,py)=>[(px-ox)/sc,(oy-py)/sc];
-   bpH.unshift({p:T(k1),on:(px,py)=>{const q=gm.fromYZ(yz(px,py));fr.thK=Math.round(deg(Math.atan2(q[1],q[0])));fr.aK=Math.max(0.01,r2(Math.hypot(q[0],q[1])/gm.Lc));loadPanel();update();}});
-   bpH.unshift({p:T(c1),on:(px,py)=>{const q=gm.fromYZ(yz(px,py));const dx=gm.yc-q[0],dz=gm.dl-q[1];fr.thC=Math.round(deg(Math.atan2(dz,dx)));fr.aC=Math.max(0.01,r2(Math.hypot(dx,dz)/gm.Lc));loadPanel();update();}});}}}
+   bpH.unshift({p:T(k1),on:(px,py)=>{const q=gm.fromYZ(yz(px,py));fr.thK=clamp(Math.round(deg(Math.atan2(q[1],q[0]))),0,90);fr.aK=Math.max(0.01,r2(Math.hypot(q[0],q[1])/gm.Lc));loadPanel();update();}});
+   bpH.unshift({p:T(c1),on:(px,py)=>{const q=gm.fromYZ(yz(px,py));const dx=gm.yc-q[0],dz=gm.dl-q[1];fr.thC=clamp(Math.round(deg(Math.atan2(dz,dx))),0,90);fr.aC=Math.max(0.01,r2(Math.hypot(dx,dz)/gm.Lc));loadPanel();update();}});}}}
 dragger(bp,()=>bpH);
 
 // ---- 3D
@@ -471,7 +471,7 @@ g('stepBtn').addEventListener('click',()=>{g('stepMsg').textContent='computing s
  g('stepMsg').textContent='bottom.step written ('+(txt.length/1024).toFixed(0)+' kB, '+(2*NCONE)+' faces)';}catch(e){g('stepMsg').textContent='export failed: '+e.message;}},20);});
 
 // ---- update everything
-function update(){ch=multiChain(st.V,st.m,st.frames,st.kz,st.rake);mesh=meshMulti(ch,48,32);
+function update(){for(const f of st.frames){f.thK=clamp(f.thK,0,90);f.thC=clamp(f.thC,0,90);f.aK=Math.max(0.01,f.aK);f.aC=Math.max(0.01,f.aC);}ch=multiChain(st.V,st.m,st.frames,st.kz,st.rake);mesh=meshMulti(ch,48,32);
  for(let j=0;j<NCONE;j++){let ok=true,py=-1;for(let i=0;i<=40;i++){const y=ch.cones[j].frame(i/40)[1];if(y<py-1e-6)ok=false;py=y;}if(!ok)ch.warns.push('frame of cone V'+j+'–V'+(j+1)+' overhangs (half-breadth not monotone)');}
  bad=new Set();for(const w of ch.warns){let m=/^seam V(\d+)/.exec(w);if(m){bad.add(+m[1]-1);bad.add(+m[1]);}m=/^frame of cone V(\d+)/.exec(w);if(m)bad.add(+m[1]);}
  let s='';for(let v=1;v<ch.N;v++){const sm=ch.seams[v];s+='seam V'+v+': excursion '+fmt(100*sm.exc,0)+' cm, shape difference '+fmt(100*sm.dz,1)+' cm'+(sm.dz>1e-4?' (gearing '+fmt(sm.exc/sm.dz,1)+':1)':'')+', fold '+(sm.fold.length?fmt(Math.min(...sm.fold),1)+'–'+fmt(Math.max(...sm.fold),1)+'°':'n/a')+'\n';}

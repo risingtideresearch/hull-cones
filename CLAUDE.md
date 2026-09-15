@@ -313,6 +313,8 @@ authoring tool) from the main branch root (set up 2026-09-14).
   sprops): valid shell, 8 faces / 22 edges / 13 vertices, tight bboxes = plates, face areas match
   the tool's mesh areas within 0.15%. OCC converts to mm on read (fine). Demo: bottom-demo.step.
   UI (2026-09-14): "reset all to round" resets every frame; default keel z KZ0=-0.9 (was -0.25).
+  Tangent angles clamped to [0,90] deg in the tool (user: "should only ever be between 0 and 90"),
+  on drag and on state apply; the explainer still allows negative chine angles for exploration.
   Also fixed: sd() now refines the nearest point on the exact Bezier section (golden section)
   after the 40-segment polyline search, in pages 05 and 06. Its shared JS (helpers, View3D,
   coneChain, frameControls, multiChain, mesh/contour/drawLines) is a COPY extracted from page
