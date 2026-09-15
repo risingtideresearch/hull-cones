@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chord deadrise</title>
+<style>
+  :root { --ink:#1e2a30; --paper:#f7f6f2; --muted:#7c8a90; --line:#cfd6d9; --ruling:#3aa58a; --seam:#c8512a; --master:#2b6cb0; --keel:#8a4fbf; --warn:#b3261e; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:15px/1.55 Georgia, "Times New Roman", serif; }
+  main { max-width:1100px; margin:0 auto; padding:28px 20px 80px; }
+  h1 { font-size:26px; font-weight:normal; margin:0 0 6px; line-height:1.25; }
+  h2 { font-size:20px; font-weight:normal; margin:38px 0 8px; padding-top:16px; border-top:1px solid var(--line); }
+  p { max-width:74ch; margin:0 0 12px; }
+  p.lead { color:var(--muted); margin-bottom:18px; }
+  figcaption { font:13px/1.5 system-ui, sans-serif; color:var(--muted); margin:6px 0 0; max-width:78ch; }
+  canvas { width:100%; display:block; background:#fff; border:1px solid var(--line); border-radius:6px; }
+  .top { display:grid; grid-template-columns:1fr 310px; gap:16px; align-items:start; }
+  @media (max-width:820px) { .top { grid-template-columns:1fr; } }
+  .panel { font:13px/1.45 system-ui, sans-serif; }
+  .panel h4 { font-size:13px; font-weight:600; margin:14px 0 4px; }
+  .panel h4:first-child { margin-top:0; }
+  label { display:flex; align-items:center; gap:8px; color:var(--muted); margin:4px 0; }
+  label span.n { min-width:52px; }
+  label span.v { min-width:56px; color:var(--ink); font-variant-numeric:tabular-nums; text-align:right; }
+  input[type=range] { flex:1; accent-color:var(--ink); }
+  button { font:13px system-ui, sans-serif; padding:3px 9px; border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:4px; cursor:pointer; margin:0 4px 4px 0; }
+  button:hover { border-color:var(--ink); }
+  pre.info { font:12.5px/1.6 ui-monospace, Menlo, Consolas, monospace; margin:10px 0 0; white-space:pre-wrap; }
+  pre.info .w { color:var(--warn); }
+  .key { font:13px/1.7 system-ui, sans-serif; color:var(--muted); margin:6px 0 0; }
+  .key i { display:inline-block; width:22px; height:3px; vertical-align:middle; margin-right:5px; border-radius:2px; }
+  ul { max-width:76ch; padding-left:22px; }
+  li { margin:0 0 7px; }
+  .math { font-family:Georgia, serif; font-style:italic; }
+  .eq { margin:10px 0 14px 18px; font-family:Georgia, serif; font-style:italic; font-size:16px; }
+  table { border-collapse:collapse; font:13px/1.5 system-ui, sans-serif; margin:8px 0 14px; }
+  td, th { border:1px solid var(--line); padding:4px 10px; text-align:left; }
+  th { background:#efefec; font-weight:600; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+<h1>Chord deadrise</h1>
+<p class="lead">What the angle is, and the fact that makes it the natural handle on the keel: on a cone-chain bottom it is
+constant along each plate. Same chine, keel chain and frame Béziers as the authoring tool.</p>
+
+<p><b>Definition.</b> At station <span class="math">x</span> the bottom's half-section runs from the keel point
+<span class="math">K</span> on the centreline out to the chine point <span class="math">V</span>. <i>Chord deadrise</i>
+<span class="math">β</span> is the angle of the straight chord <span class="math">K→V</span> above horizontal:</p>
+<p class="eq">β(x) = atan( (z<sub>V</sub> − z<sub>K</sub>) / y<sub>V</sub> )&nbsp;&nbsp;&nbsp;⇔&nbsp;&nbsp;&nbsp;z<sub>K</sub>(x) = z<sub>V</sub>(x) − y<sub>V</sub>(x)·tan β</p>
+<p>It is built from the two boundary curves only, so it is blind to the frame parameters — the section between
+<span class="math">K</span> and <span class="math">V</span> can be any shape at all. Change the frame preset below and
+watch the section curve move while the chord and <span class="math">β</span> stay exactly put.</p>
+
+<h2>The angle, in section</h2>
+<div class="top">
+  <div>
+    <canvas id="sec" style="height:430px"></canvas>
+    <p class="key"><i style="background:#8a4fbf"></i>chord K→V &nbsp; <i style="background:#3aa58a"></i>section of the cone
+      &nbsp; <i style="background:#c8512a"></i>tangent at the keel &nbsp; <i style="background:#b9c3c8"></i>neighbouring cone</p>
+  </div>
+  <div class="panel">
+    <h4>Station</h4>
+    <label><input type="range" id="x" min="0.1" max="10" step="0.05" value="6.2"><span class="v" id="xv"></span></label>
+    <h4>Chord deadrise, one per cone</h4>
+    <div id="bsl"></div>
+    <div style="margin-top:6px"><button id="eq">all equal</button><button id="vary">vary</button></div>
+    <h4>Frames <span style="font-weight:normal;color:var(--muted)">(all cones)</span></h4>
+    <div id="pre"></div>
+    <pre class="info" id="info"></pre>
+  </div>
+</div>
+<figcaption>Body plan at one station, looking forward; starboard right, port mirrored. The green curve is the cone's exact
+intersection with the plane <span class="math">x</span> = const, so its two ends <i>are</i> the keel and chine points and
+the chord is the chord of that curve. With the <b>straight V</b> preset the frame is a straight line, the cone degenerates
+to a plane, and the section lies on the chord — <span class="math">τ</span> = <span class="math">β</span> to 2·10⁻⁶ °,
+which is the check that the two are computed independently.</figcaption>
+
+<h2>It is constant along each plate</h2>
+<p>The chine segment and the keel line of one cone are both <i>rulings through the same apex</i>
+<span class="math">P</span> (the chine segment is a ruling — that is the whole basis of the construction; the keel is the
+ruling that lies in the centreplane). So the triangle <span class="math">P–V(x)–K(x)</span> at one station is a homothetic
+copy, scaled about <span class="math">P</span>, of the triangle at any other station. Scaling preserves angles, so:</p>
+<p class="eq">β is constant over each cone.</p>
+<p>Writing the two rulings as <span class="math">P + a·d<sub>V</sub></span> and <span class="math">P + b·d<sub>K</sub></span>
+and cutting both at station <span class="math">x</span> gives it directly, with the <span class="math">x</span> dependence
+cancelling:</p>
+<p class="eq">tan β = ( d<sub>Vz</sub>/d<sub>Vx</sub> − d<sub>Kz</sub>/d<sub>Kx</sub> ) / ( d<sub>Vy</sub>/d<sub>Vx</sub> )</p>
+<p>Two consequences. First, the keel of a cone chain is just <b>the chine pulled down by <span class="math">y·tan β</span></b>,
+with <span class="math">β</span> piecewise constant — that single formula reproduces the tool's keel polyline to 4·10⁻¹⁶ m.
+Second, if every <span class="math">β<sub>j</sub></span> is equal then every keel vertex lands exactly under its chine
+vertex: <b>zero rake and constant chord deadrise are the same condition</b>. The tool's default keel
+(<span class="math">z</span>&nbsp;=&nbsp;−0.9 at K2, no rake) is a constant 37.57° chord-deadrise bottom, end to end.</p>
+
+<canvas id="along" style="height:390px"></canvas>
+<figcaption>Top: chine and keel profiles with the drop shaded — the numerator of <span class="math">β</span>. Bottom:
+chord deadrise (solid) and the section's <i>tangent</i> deadrise at the keel <span class="math">τ</span> (dashed).
+<span class="math">β</span> is a staircase: flat over each cone, with a short ramp wherever the keel vertex is raked off its
+chine vertex, because in that window the keel comes from one cone while the chine still comes from the other. Set the
+sliders equal and the staircase collapses to one horizontal line. <span class="math">τ</span> steps at every vertex instead,
+since it belongs to whichever cone owns the station.</figcaption>
+
+<h2>As an authoring chart</h2>
+<p>One <span class="math">β<sub>j</sub></span> per cone is <b>N</b> numbers for the keel's <b>N</b> degrees of freedom —
+a complete, rake-free chart. Each <span class="math">β<sub>j</sub></span> fixes the slope of keel line
+<span class="math">j</span>, which with the apex fixes the line; the keel vertices, and hence the rakes, come out as
+intersections. It is the dual of the keel-vertex chart, which authors the vertices and derives
+<span class="math">β</span>.</p>
+<table id="tab"></table>
+<ul>
+  <li><b>It never degenerates.</b> On a cone it is a direction parameter (a re-unit of the keel line's slope); on the
+    cylinder segment, where the direction is frozen and slope authoring is impossible, the same formula becomes a pure
+    translation — <span class="math">y<sub>V</sub></span> is constant there, so
+    <span class="math">β</span> just sets the constant drop. It is the one handle that survives both branches, and the
+    short lever arm at the stem cone as well.</li>
+  <li><b>Mild, even gearing.</b> 2.4–3.6 cm of keel depth per degree across all four cones of the demo, against
+    12–14 cm per degree for the keel knuckle angle and 8–14 cm per degree for raw keel slope.</li>
+  <li><b>It is orthogonal to the frames</b>, which redistribute shape inside the chord without touching it. Deadrise read
+    as the <i>tangent at the keel</i> has neither property: it depends on the frame, and on how obliquely the station plane
+    cuts the cone.</li>
+  <li><b>What it costs.</b> Rake stops being authored. A difference between neighbouring
+    <span class="math">β</span>'s drives the keel vertex fore or aft, at the rate in the table, and the existing warning
+    (vertex past a neighbouring chine station) becomes a bound on how fast deadrise may change from plate to plate.</li>
+  <li><b>Caveat at the stem.</b> <span class="math">y<sub>V</sub> → 0</span> there, so <span class="math">β</span> is a
+    ratio of two vanishing quantities; it stays finite and well conditioned as a slope handle, but it says nothing about
+    depth near <span class="math">x</span> = 0, where the keel is pinned to the stem point anyway.</li>
+</ul>
+
+<script>
+// ---------------- geometry (chine, frame Bezier and cone sections as in the authoring tool)
+const V=[[0,0,0.9],[2.5,0.85,0.35],[5,1.3,0.1],[7.5,1.3,0.05],[10,0.9,0.15]];
+const N=V.length-1;
+const C={ink:'#1e2a30',muted:'#7c8a90',light:'#b9c3c8',ruling:'#3aa58a',seam:'#c8512a',master:'#2b6cb0',keel:'#8a4fbf',warn:'#b3261e'};
+const g=id=>document.getElementById(id), val=id=>+g(id).value;
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const lerp=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
+const norm=a=>Math.hypot(a[0],a[1],a[2]);
+const deg=r=>r*180/Math.PI, rad=d=>d*Math.PI/180;
+const fmt=(x,n=2)=>(x===undefined||x===null||!isFinite(x))?'n/a':x.toFixed(n);
+const cp=o=>JSON.parse(JSON.stringify(o));
+const FRAMES={demo:{name:'tool default'},round:{thK:0,aK:0.32,thC:90,aC:0.09,name:'round bilge'},v:{thK:0,aK:0,thC:90,aC:0,name:'straight V'},flare:{thK:35,aK:0.35,thC:0,aC:0.35,name:'flared'},s:{thK:0,aK:0.35,thC:-10,aC:0.3,name:'S'}};
+const DEMO=[{thK:20,aK:0.35,thC:10,aC:0.35},{thK:10,aK:0.35,thC:40,aC:0.25},{thK:0,aK:0.32,thC:90,aC:0.09},{thK:0,aK:0.2,thC:90,aC:0.05}];
+const B0=37.57;                                  // the tool's default keel (kz -0.9, no rake) in chord-deadrise units
+let st={frames:cp(DEMO)};
+
+const apexes=(()=>{const s=[];for(let j=0;j<N;j++){const A=V[j],B=V[j+1],d=sub(B,A);
+  s.push(Math.abs(d[1])<1e-6?{cyl:true,dir:d}:{cyl:false,P:add(A,mul(d,-A[1]/d[1]))});}return s;})();
+const chineOf=x=>{for(let j=0;j<N;j++)if(x<=V[j+1][0]+1e-9)return j;return N-1;};
+const chineAt=x=>{const j=chineOf(x);return lerp(V[j],V[j+1],(x-V[j][0])/(V[j+1][0]-V[j][0]));};
+
+// keel from one chord deadrise per cone: line j is the chine segment j pulled down by y*tan(beta_j)
+function chainB(bet){
+  const lines=[],warns=[];
+  for(let j=0;j<N;j++){const A=V[j],B=V[j+1],t=Math.tan(rad(bet[j]));
+    const zA=A[2]-A[1]*t,zB=B[2]-B[1]*t,s=(zB-zA)/(B[0]-A[0]);
+    lines.push({s,z:x=>zA+s*(x-A[0])});}
+  const kv=[];kv[0]=[V[0][0],0,lines[0].z(V[0][0])];
+  for(let v=1;v<N;v++){const a=lines[v-1],b=lines[v];
+    const x=(b.z(0)-a.z(0))/(a.s-b.s);
+    if(!isFinite(x)){kv[v]=[V[v][0],0,a.z(V[v][0])];warns.push('cones '+(v-1)+'/'+v+': keel lines parallel, vertex '+v+' undefined');}
+    else{kv[v]=[x,0,a.z(x)];
+      if(x<V[v-1][0]||x>V[v+1][0])warns.push('keel vertex '+v+' at x '+x.toFixed(2)+' is past a neighbouring chine station');}}
+  kv[N]=[V[N][0],0,lines[N-1].z(V[N][0])];
+  for(let v=1;v<=N;v++)if(kv[v][0]<kv[v-1][0]-1e-9){warns.push('keel vertices are out of order at '+(v-1)+'/'+v+': the keel doubles back');break;}
+  return{lines,kv,warns,segs:apexes};
+}
+const keelOf=(ch,x)=>{for(let j=0;j<N;j++)if(x<=ch.kv[j+1][0]+1e-9)return j;return N-1;};
+const keelAt=(ch,x)=>[x,0,ch.lines[keelOf(ch,x)].z(x)];
+function beta(ch,x){const Vp=chineAt(x),Kp=keelAt(ch,x);
+  return{Vp,Kp,y:Vp[1],D:Vp[2]-Kp[2],b:deg(Math.atan2(Vp[2]-Kp[2],Vp[1]))};}
+
+function bez2(fr,yc,dl){const Lc=Math.hypot(yc,dl),tk=rad(fr.thK),tc=rad(fr.thC);
+  const K1=[fr.aK*Lc*Math.cos(tk),fr.aK*Lc*Math.sin(tk)],C1=[yc-fr.aC*Lc*Math.cos(tc),dl-fr.aC*Lc*Math.sin(tc)],Cc=[yc,dl];
+  return u=>{const b=3*u*(1-u)**2,c=3*u*u*(1-u),e=u**3;return[b*K1[0]+c*C1[0]+e*Cc[0],b*K1[1]+c*C1[1]+e*Cc[1]];};}
+function coneSec(ch,j){ // (X,u) -> section point of cone j at station X; u = 0 keel .. 1 chine
+  const Kv=ch.kv[j+1],Cv=V[j+1],w=[Cv[0]-Kv[0],0,Cv[2]-Kv[2]],dl=norm(w),wh=mul(w,1/dl),bz=bez2(st.frames[j],Cv[1],dl);
+  const frame=u=>{const q=bz(u);return add(add(Kv,[0,q[0],0]),mul(wh,q[1]));};
+  const q=apexes[j];
+  return (X,u)=>{const Q=frame(u);if(!q.cyl&&(X-q.P[0])*(Q[0]-q.P[0])<=0)return null;
+    const d=q.cyl?q.dir:sub(Q,q.P);return add(Q,mul(d,(X-Q[0])/d[0]));};
+}
+function tau(ch,x){const s=coneSec(ch,chineOf(x)),a=s(x,0),b=s(x,1e-4);
+  return(!a||!b)?NaN:deg(Math.atan2(b[2]-a[2],b[1]-a[1]));}
+
+// ---------------- canvas helpers
+function prep(c){const x=c.getContext('2d'),dpr=window.devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight;
+  c.width=W*dpr;c.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,W,H);
+  x.font='12px system-ui, sans-serif';return[x,W,H];}
+function poly(ctx,pts,col,w,dash){pts=pts.filter(Boolean);if(pts.length<2)return;
+  ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w||1;ctx.setLineDash(dash||[]);
+  pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke();ctx.setLineDash([]);}
+function dot2(ctx,p,col,r){ctx.fillStyle=col;ctx.beginPath();ctx.arc(p[0],p[1],r||4.5,0,7);ctx.fill();}
+
+// ---------------- figure 1: one section
+function drawSec(ch,x){
+  const[ctx,W,H]=prep(g('sec'));
+  const zs=ch.kv.map(p=>p[2]).concat(V.map(p=>p[2]));
+  const zmin=Math.min(...zs)-0.2,zmax=Math.max(...zs)+0.2,ymax=1.7;
+  const sc=Math.min((W-80)/(2*ymax),(H-54)/(zmax-zmin));
+  const ox=W/2,oy=H-28+zmin*sc, T=p=>[ox+sc*p[1],oy-sc*p[2]];
+  const B=beta(ch,x),jc=chineOf(x),jk=keelOf(ch,x);
+  const Ks=T(B.Kp),Vs=T(B.Vp);
+  poly(ctx,[[ox,14],[ox,H-14]],'#e4e8ea',1,[4,4]);
+  ctx.fillStyle=C.light;ctx.fillText('centreline',ox+5,H-16);
+  poly(ctx,[[18,Ks[1]],[W-18,Ks[1]]],'#e4e8ea',1,[4,4]);
+  ctx.fillStyle=C.light;ctx.fillText('horizontal through K',W-152,Ks[1]-6);
+  const curve=j=>{const s=coneSec(ch,j),p=[];for(let i=0;i<=80;i++){const q=s(x,i/80);if(q)p.push(T(q));}return p;};
+  // neighbouring cones, faint: the one that owns the other end of the chord, or a near vertex
+  const near=new Set();
+  if(jk!==jc)near.add(jk);
+  for(const jn of[jc-1,jc+1])if(jn>=0&&jn<N&&Math.abs(x-V[jn>jc?jc+1:jc][0])<0.6)near.add(jn);
+  near.delete(jc);
+  near.forEach(j=>{const p=curve(j);poly(ctx,p,C.light,1.2,[3,3]);poly(ctx,p.map(q=>[2*ox-q[0],q[1]]),C.light,1.2,[3,3]);});
+  const p=curve(jc);
+  poly(ctx,p.map(q=>[2*ox-q[0],q[1]]),'#bcd9d0',1.6);
+  poly(ctx,p,C.ruling,2.2);
+  poly(ctx,[[2*ox-Ks[0],Ks[1]],[2*ox-Vs[0],Vs[1]]],'#cdbede',1.6);
+  poly(ctx,[Ks,Vs],C.keel,2.4);
+  const t=tau(ch,x);
+  if(isFinite(t)){const L=Math.min(150,sc*0.9);
+    poly(ctx,[Ks,[Ks[0]+L*Math.cos(rad(t)),Ks[1]-L*Math.sin(rad(t))]],C.seam,1.4,[6,4]);}
+  const arc=(r,a,col,lab)=>{const th=-rad(a);ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=1.4;
+    ctx.arc(Ks[0],Ks[1],r,Math.min(0,th),Math.max(0,th));ctx.stroke();
+    ctx.fillStyle=col;ctx.fillText(lab,Ks[0]+r*Math.cos(th/2)+7,Ks[1]+r*Math.sin(th/2)+4);};
+  arc(56,B.b,C.keel,'β = '+fmt(B.b,1)+'°');
+  if(isFinite(t))arc(95,t,C.seam,'τ = '+fmt(t,1)+'°');
+  poly(ctx,[[Vs[0],Ks[1]],Vs],'#e4e8ea',1);
+  ctx.fillStyle=C.muted;ctx.fillText('drop '+fmt(B.D)+' m',Vs[0]+8,(Vs[1]+Ks[1])/2+4);
+  dot2(ctx,Ks,C.keel);dot2(ctx,Vs,C.ink);
+  ctx.fillStyle=C.keel;ctx.fillText('K  z '+fmt(B.Kp[2]),Ks[0]-92,Ks[1]+17);
+  ctx.fillStyle=C.ink;ctx.fillText('V  y '+fmt(B.y)+'  z '+fmt(B.Vp[2]),Vs[0]+8,Vs[1]-8);
+  ctx.fillStyle=C.muted;ctx.fillText('station x = '+fmt(x)+'    chine on cone '+jc+', keel on cone '+jk,16,20);
+  return B;
+}
+
+// ---------------- figure 2: along the length
+function drawAlong(ch,xcur){
+  const[ctx,W,H]=prep(g('along'));
+  const L=V[N][0],ox=46,sc=(W-ox-20)/L, X=x=>ox+sc*x;
+  const h1=Math.round((H-42)*0.46), y1=14, y2=y1+h1+28, h2=H-y2-22;
+  const zs=ch.kv.map(p=>p[2]).concat(V.map(p=>p[2]));
+  const zmin=Math.min(...zs)-0.12,zmax=Math.max(...zs)+0.12,scz=h1/(zmax-zmin);
+  const Z=z=>y1+h1-(z-zmin)*scz;
+  const bs=[];for(let i=0;i<=300;i++)bs.push(beta(ch,0.05+(L-0.05)*i/300).b);
+  const bmax=Math.max(60,Math.ceil(Math.max(...bs)/15)*15), scb=h2/bmax, Bv=b=>y2+h2-b*scb;
+  for(let v=0;v<=N;v++)poly(ctx,[[X(V[v][0]),y1],[X(V[v][0]),y2+h2]],'#eef1f2',1,[3,4]);
+  ctx.fillStyle='#f0f4f2';ctx.beginPath();
+  for(let i=0;i<=200;i++){const x=0.02+L*i/200;ctx.lineTo(X(x),Z(chineAt(x)[2]));}
+  for(let i=200;i>=0;i--){const x=0.02+L*i/200;ctx.lineTo(X(x),Z(keelAt(ch,x)[2]));}
+  ctx.closePath();ctx.fill();
+  poly(ctx,V.map(p=>[X(p[0]),Z(p[2])]),C.ink,2);
+  poly(ctx,ch.kv.map(p=>[X(p[0]),Z(p[2])]),C.keel,2);
+  ch.kv.forEach((p,v)=>{if(v>0&&v<N)dot2(ctx,[X(p[0]),Z(p[2])],C.keel,3.5);});
+  ctx.fillStyle=C.muted;ctx.fillText('chine',X(L)-40,Z(V[N][2])-9);
+  ctx.fillText('keel (vertices derived)',X(L)-150,Z(ch.kv[N][2])+17);
+  ctx.fillText('profile  z (m)',ox+4,y1+10);
+  for(let b=0;b<=bmax;b+=15){poly(ctx,[[ox,Bv(b)],[W-20,Bv(b)]],'#eef1f2',1);
+    ctx.fillStyle=C.light;ctx.fillText(b+'°',8,Bv(b)+4);}
+  let run=[];
+  for(let i=0;i<=300;i++){const x=0.05+(L-0.05)*i/300,t=tau(ch,x);
+    if(isFinite(t))run.push([X(x),Bv(t)]);
+    if(i<300&&chineOf(0.05+(L-0.05)*(i+1)/300)!==chineOf(x)){poly(ctx,run,C.seam,1.4,[5,4]);run=[];}}
+  poly(ctx,run,C.seam,1.4,[5,4]);
+  poly(ctx,bs.map((b,i)=>[X(0.05+(L-0.05)*i/300),Bv(b)]),C.keel,2.2);
+  ctx.fillStyle=C.muted;ctx.fillText('deadrise',ox+4,y2+10);
+  ctx.fillStyle=C.keel;ctx.fillText('β  chord',X(L)-116,Bv(bs[290])-9);
+  const tl=tau(ch,L-0.4);if(isFinite(tl)){ctx.fillStyle=C.seam;ctx.fillText('τ  tangent at keel',X(L)-116,Bv(tl)+17);}
+  poly(ctx,[[X(xcur),y1],[X(xcur),y2+h2]],C.master,1.2);
+  dot2(ctx,[X(xcur),Bv(beta(ch,xcur).b)],C.master,4);
+  dot2(ctx,[X(xcur),Z(keelAt(ch,xcur)[2])],C.master,3.5);
+  ctx.fillStyle=C.light;for(let v=0;v<=N;v++)ctx.fillText('x '+V[v][0],X(V[v][0])-12,H-6);
+}
+
+// ---------------- gearing table
+function table(ch,bet){
+  const r=['<tr><th>cone</th><th>chine segment</th><th>apex lever arm</th><th>keel depth per 1° of β</th><th>keel vertex move per 1° of β mismatch</th></tr>'];
+  for(let j=0;j<N;j++){
+    const q=apexes[j],x=(V[j][0]+V[j+1][0])/2,B=beta(ch,x);
+    const dz=((B.y*B.y+B.D*B.D)/B.y)*Math.PI/180*100;
+    let mv='—';
+    if(j<N-1){const b2=bet.slice();b2[j+1]+=1;const c2=chainB(b2);
+      mv=fmt(Math.abs(c2.kv[j+1][0]-ch.kv[j+1][0])*100,0)+' cm  (vertex '+(j+1)+')';}
+    r.push('<tr><td>'+j+'</td><td>V'+j+'–V'+(j+1)+(q.cyl?' <i>cylinder</i>':'')+'</td>'+
+      '<td class="num">'+(q.cyl?'∞':fmt(Math.abs(x-q.P[0]))+' m')+'</td>'+
+      '<td class="num">'+fmt(dz,1)+' cm</td><td class="num">'+mv+'</td></tr>');}
+  g('tab').innerHTML=r.join('');
+}
+
+// ---------------- controls
+g('bsl').innerHTML=[0,1,2,3].map(j=>'<label><span class="n">cone '+j+'</span>'+
+  '<input type="range" id="b'+j+'" min="5" max="60" step="0.5" value="'+B0+'"><span class="v" id="b'+j+'v"></span></label>').join('');
+g('pre').innerHTML=Object.keys(FRAMES).map(k=>'<button id="pre_'+k+'">'+FRAMES[k].name+'</button>').join('');
+Object.keys(FRAMES).forEach(k=>g('pre_'+k).addEventListener('click',()=>{
+  st.frames=(k==='demo')?cp(DEMO):st.frames.map(()=>Object.assign({},FRAMES[k]));update();}));
+const setB=a=>{a.forEach((b,j)=>{g('b'+j).value=b;});update();};
+g('eq').addEventListener('click',()=>setB([B0,B0,B0,B0]));
+g('vary').addEventListener('click',()=>setB([46,41,36,31]));
+['x','b0','b1','b2','b3'].forEach(id=>g(id).addEventListener('input',update));
+
+function update(){
+  const bet=[0,1,2,3].map(j=>val('b'+j)), x=val('x'), ch=chainB(bet);
+  bet.forEach((b,j)=>{g('b'+j+'v').textContent=fmt(b,1)+'°';});
+  g('xv').textContent=fmt(x)+' m';
+  const B=drawSec(ch,x);drawAlong(ch,x);table(ch,bet);
+  const t=tau(ch,x);
+  g('info').textContent=
+    'half-breadth  y = '+fmt(B.y)+' m\n'+
+    'drop          D = '+fmt(B.D)+' m\n'+
+    'keel          z = '+fmt(B.Kp[2])+' m\n'+
+    'chord   β = '+fmt(B.b,2)+' °\n'+
+    'tangent τ = '+fmt(t,2)+' °\n'+
+    'derived keel vertices x = '+ch.kv.slice(1,N).map(p=>fmt(p[0])).join(', ')+'\n'+
+    'rake                     '+ch.kv.slice(1,N).map((p,i)=>fmt(p[0]-V[i+1][0])).join(', ');
+  if(ch.warns.length)g('info').textContent+='\n'+ch.warns.map(w=>'! '+w).join('\n');
+}
+window.addEventListener('resize',update);
+update();
+</script>
+</main>
+</body>
+</html>

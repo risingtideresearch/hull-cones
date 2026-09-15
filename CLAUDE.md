@@ -175,6 +175,88 @@ distilled state so the next session doesn't re-derive it.
     profile/plan and as shading breaks in 3D. Only fig 9 is shaded; fig 7 (design) is still
     wireframe (multiChain has no seam bulge, so it cannot yet replace coneChain there).
 
+21. Chord deadrise beta = atan((z_V - z_K)/y_V), i.e. the angle of the straight chord keel->chine in a station
+    (2026-09-14, page 07). The chine segment and the keel line of one cone are both RULINGS THROUGH THE SAME APEX, so
+    the triangle P-V(x)-K(x) is a homothety of itself at every station and beta is CONSTANT ALONG EACH CONE:
+    tan beta = (dVz/dVx - dKz/dKx)/(dVy/dVx). Equivalently the keel is just the chine pulled down by y*tan beta,
+    z_K(x) = z_V(x) - y_V(x)*tan beta; [numerical] that one formula reproduces the tool's keel polyline to 4e-16 m.
+    => equal beta on every cone <=> zero rake. The tool's default keel (kz -0.9, no rake) is a constant 37.57 deg
+    chord-deadrise bottom end to end, and the keel's one remaining DOF at rake 0 IS beta.
+    Rake is exactly the freedom to let beta vary. beta(x) is a staircase: flat over each cone, with a ramp between a
+    chine vertex and its raked keel vertex (in that window the keel comes from one cone, the chine from the other).
+    AUTHORING CHART: one beta per cone = N numbers for the keel's N DOF, complete and rake-free, dual to the current
+    chart (vertices authored, beta derived). On a cone beta is a re-unit of the keel line's SLOPE (direction-type);
+    on the cylinder segment, where the direction is frozen, y_V is constant and the same formula becomes a pure
+    translation. It is the only handle tried that survives both branches and the short stem-cone lever arm.
+    [numerical, demo] gearing 2.4-3.6 cm of keel depth per degree on all four cones (vs 12-14 cm/deg for the keel
+    knuckle angle, 8-14 cm/deg for raw keel slope); 1 deg of beta mismatch between neighbours moves the shared keel
+    vertex 10-20 cm fore/aft, so the existing "vertex past a neighbouring chine station" warning becomes a bound of
+    roughly 12-25 deg on how fast deadrise may change from plate to plate. Added warning: keel vertices out of order.
+    beta is blind to the four frame parameters; the TANGENT deadrise at the keel tau is not, and tau jumps at every
+    vertex (it belongs to whichever cone owns the station). With the straight-V frame the cone degenerates to a plane
+    and tau = beta to 2e-6 deg - the cross-check that the two are computed independently.
+
+22. Inverse chart + trimmed edge — the tool's ONLY mode since 2026-09-14 (user: "I want to author the keel
+    points and the plan chine, and this spline, as the only mode").
+    AUTHORED: the keel polyline (x,z of every vertex, no rake, no master), the chine IN PLAN (x,y), the four
+    frame parameters per cone, and a trim spline z = f(x). DERIVED: the chine's z, the apexes, the seams, and
+    the real edge of the bottom.
+    (a) Chine z. Each keel line must pass through its cone's apex. Written as
+        y_{j+1}(z_j - L_j(x_j)) = y_j(z_{j+1} - L_j(x_{j+1})), one linear equation per cone, singular NOWHERE
+        (the cylinder branch reads z_{j+1}-z_j = s_j(x_{j+1}-x_j)). Bidiagonal => a forward sweep, no solve.
+        y_0 = 0 collapses equation 0 to z_0 = L_0(x_0) (the chine's stem point IS the keel's forward end), so
+        the one free number is z_1. Sweep gain y_{j+1}/y_j, telescoping to y_N/y_1 = 1.06 on the demo; it blows
+        up only if a chine vertex approaches the centreline (gain 26 at y_1 = 0.05) - warned below y = 0.05.
+        The leftover freedom is EXACTLY the shear z -> z + lambda*y: an affine map fixing the centreplane
+        pointwise, so it maps cones to cones, leaves the keel and the plan untouched, and shifts every cone's
+        tan(beta) by lambda. In the UI it is dragging any chine vertex up or down.
+        [numerical] reproduces the old default chine to 6e-9 m; every apex lands on its keel line to 3e-16 m.
+    (b) Trim. The edge of the bottom is a curve ON the cones, so it has exactly ONE free function: you can fair
+        its profile or its plan, not both. REVISED 2026-09-15 (user: "a version where the plan view is an
+        approximating spline and the profile chine is derived", then chose the trimmed edge + replace):
+        it is now authored in PLAN as y = g(x) and its PROFILE is derived. g is a clamped cubic B-spline,
+        APPROXIMATING, sampled to a 1200-point y(x) lookup; the edge is cones n {y = g(x)}, one monotone
+        bisection on y per station (needs half-breadth monotone along the section - the existing "frame
+        overhangs" warning covers it).
+        The CHINE PLAN POLYLINE IS THE CONTROL POLYGON - one set of handles, no separate control points
+        (2026-09-15, user: "too complicated to have the spline handles be separate from the construction
+        handles ... just approximating spline for the construction points"). That is why the spline has to be
+        approximating rather than interpolating: a B-spline lies in the convex hull of its control points, so
+        the edge is inside the chine automatically, and the stem (0,0) and transom vertices are interpolated
+        because the spline is clamped. g is still clamped to [0, y_chine] for the one case that escapes it, a
+        CONCAVE run of the plan polyline, which warns as well (a test dent at V2 put the raw spline 145 mm
+        outside; the clamped edge stayed at 0.000 mm).
+        A first attempt gave the spline its own 7 control points; dropped, but see the cost below.
+        The FIRST version (2026-09-14) authored it in profile instead, as a natural cubic z = f(x) through one
+        knot per chine station given as a drop below the derived chine. Dropped, but the lesson is kept: it
+        needed f clamped to min(f, chine) with NO warning, because between knots a spline through the chine
+        vertices pokes a few mm above a non-convex chine profile on almost any edit (user 2026-09-15: "the text
+        below the plan is now always red" - that warning was the cause). Continuity across a seam is free: the seam point with z = f(x) lies on
+        both cones, so it is the trim point of both - the tool finds that corner once on the seam polyline and
+        snaps both plates to it (gaps 0.00 mm; without the snap, 13-point seam sampling left 2-40 mm).
+        The chine polyline survives only as the construction line that fixes the apexes.
+    [numerical, demo] WHICH VIEW YOU FAIR IS A REAL TRADE, and the plan side is the more expensive one:
+      profile-faired (z = f(x) through the chine vertices): 7.6 / 2.6 / 1.1 / 0.5 % of the half-plate AREA
+        trimmed off, forward to aft - the spread is the frame's chine tangent angle thC, since vertical at the
+        chine (thC 90) means a z drop costs almost no plate and flat at the chine (thC 10, cone 0) costs a lot;
+        the PLAN corner at each chine vertex then gets WORSE, -8.6 -> -26.6 deg at V1.
+      plan-faired (y = g(x), the current mode): 4.7 / 6.9 / 9.5 / 3.7 %, 6.2 % overall - more even fore and
+        aft than the profile-faired case, because the cost no longer keys off thC; the PROFILE then kinks at
+        the seams by 11.8 / 15.9 / 14.2 deg, a bigger and more visible break than the plan corners were.
+        COST OF SHARING THE HANDLES: with 7 control points of its own the spline hugged the polygon better and
+        lost only 3.8 / 2.7 / 5.2 / 3.1 %, 3.7 % overall. Collapsing to the 5 chine vertices costs 2.5 points
+        of plate, because a stiffer B-spline sits further inside its control polygon. The fix is more chine
+        vertices (= more cones), which couples plate count to both fairness and yield - the tool's NCONE is
+        fixed at 4 by PLAN0, so that is not draggable yet.
+    Latent bug fixed 2026-09-15: the "apply" handler still validated o.drop after the trim became a plan spline,
+  so pasting valid state was rejected.
+  VERIFIED (plan-trim version): the edge is on y = g(x) to 3e-14 m everywhere except the two snapped seam
+    corners, which come from the 13-point DISPLAY seam and are 2-12 mm off; the STEP export re-finds them at
+    res 96 to within 4 um. Unroll is an isometry to 0.04%; 8 faces / 13 vertices / 0 unresolved refs; outer
+    loops counter-clockwise in (u,v) on BOTH sides, checked directly by signed area in parameter space
+    (OpenCASCADE is no longer installed on this machine, so DRAWEXE could not be re-run).
+    update() costs ~215 ms, of which multiChain is 169 ms (pre-existing); trimCurve is 2 ms.
+
 ## Chosen design (user's decision, page 04)
 
 - Apexes pinned exactly on the centreplane (no keel fold).
@@ -256,6 +338,12 @@ z(x) with authored slope kB at K_s and k0 at the stem.
       both" - wrong, they share only the chine vertex and the keel vertex; fixed 2026-09-14.
     - unroll orientation sign `P.x < V_j.x ? 1 : -1` mirrored the STEM plate end for end (apex
       == forward vertex). Fixed to `<=` in pages 04/05/06 (2026-09-14); pages 01-03 still have it.
+    - the STEP transom edge was a straight line from the chine vertex to the keel vertex; the transom boundary
+      is the cone's SECTION there, which is only straight for a straight-V frame. Fixed 2026-09-14: it is now a
+      cubic B-spline through the sampled section, like the seams.
+    - (2026-09-14, chat) "chord deadrise is a position-type parameter, same class as depth at a station" - wrong:
+      on a cone it is a re-unit of the keel line's SLOPE, because both boundary curves are rulings through the apex
+      and the angle is scale-invariant. Position-type only on a cylinder segment. See item 21.
     - the coincidence kB = dzB in the baseline (cylinder aft: keel line parallel to
       the chine) makes det vanish exactly at (K_s, B); handle endpoint roots.
 
@@ -282,43 +370,35 @@ authoring tool) from the main branch root (set up 2026-09-14).
   "too much", "not easy to follow or convincing"; then asked for "a lot more exposition
   around how the chain of cones is constructed" (-> section 4) and flare (-> item 18).
   Page is assembled from scratch pieces (head/body/shared.js/figs.js) but is one file.
-- index.html (was pages/06-authoring.html)   AUTHORING TOOL (2026-09-14, user request). Sections: (1) chine +
-  keel: profile and plan canvases with draggable chine vertices (stem on centreline, stem/stern
-  stations fixed) and keel vertices (drag sideways = rake, up/down = height; the last-dragged
-  vertex becomes the authored one, st.m), frame-plane traces K->V in blue; (2) frames: body
-  plan with ONLY the 4 Bezier frames (user: "drop all the other lines"), drag the two handles,
-  no sliders (user: "just a Reset to round button", resets the SELECTED frame); (3) shaded 3D,
-  single colour, no overlay lines by default (user: "just shaded", "drop the tint"), no view
-  preset buttons, orbit about the model centre, wheel zoom, shift-pan; no lead/note paragraphs;
-  (4) unrolled plates (rows along each cone's own rulings, incl. the plate's frame dashed).
-  The lines drawing was removed from the tool at the user's request (3D + unrolled only).
-  State {V, frames, m, kz, rake} as JSON textarea + localStorage 'hull-cones-06'.
-  STEP EXPORT (2026-09-14): AP214, metres, one OPEN_SHELL of 2N ADVANCED_FACEs (stbd+port).
-  Each plate = exact B_SPLINE_SURFACE_WITH_KNOTS degree (3,1): control net = frame Bezier
-  control points mapped by the homothety about the apex (or translated along the cylinder
-  direction) at two ruling parameters lam0/lam1 spanning the plate (+2% margin; stem cone keeps
-  lam0=0 so the apex row is degenerate). Trimming edges: chine ruling and keel ruling as degree-1
-  B-splines, seams as clamped cubic B-splines interpolated (chord-length, Piegl&Tiller 9.1)
-  through 97 seam points sampled by multiChain(...,res=96); seam and keel EDGE_CURVEs are shared
-  between adjacent faces, vertices shared via a registry. Uncertainty 1e-4 m. Self-check in node
-  (scratch chk2.js): sample points on both cones to 0 µm, interpolated seam midpoints within
-  36 µm (res 96; 521 µm at res 24), all entity refs resolve; export ~2 s.
-  RHINO BUG FOUND + FIXED (2026-09-14): first version imported with "weird artifacts" (complement
-  regions, lens-shaped ears). Cause: STEP outer loops must run COUNTER-CLOCKWISE in the surface's
-  (u,v) parameter space; mine did only for stbd plates whose ruling parameter increased aft. Fix:
-  order the two v-columns by x (v increases aft on every face) and reverse u (chine->keel) for
-  port control nets so the port loop order (seam, keel, seam, chine) is CCW and normals stay
-  outward. VERIFIED with OpenCASCADE DRAWEXE (brew install opencascade; /opt/homebrew/bin/DRAWEXE
-  -b -f script.tcl: pload XDE OCAF MODELING; stepread; checkshape; nbshapes; bounding -optimal;
-  sprops): valid shell, 8 faces / 22 edges / 13 vertices, tight bboxes = plates, face areas match
-  the tool's mesh areas within 0.15%. OCC converts to mm on read (fine). Demo: bottom-demo.step.
-  UI (2026-09-14): "reset all to round" resets every frame; default keel z KZ0=-0.9 (was -0.25).
-  Tangent angles clamped to [0,90] deg in the tool (user: "should only ever be between 0 and 90"),
-  on drag and on state apply; the explainer still allows negative chine angles for exploration.
-  Also fixed: sd() now refines the nearest point on the exact Bezier section (golden section)
-  after the 40-segment polyline search, in pages 05 and 06. Its shared JS (helpers, View3D,
-  coneChain, frameControls, multiChain, mesh/contour/drawLines) is a COPY extracted from page
-  05's script (everything before '// ---- fig 1'); fixes to that code must go to both pages.
+- index.html (was pages/06-authoring.html)   AUTHORING TOOL. Rewritten 2026-09-14 to ONE mode (item 22).
+  Sections: (1) keel, plan and trim: profile canvas with draggable keel vertices (x and z, both authored),
+  the derived chine drawn as a dashed construction line whose vertices drag to shear (st.z1), and the edge's
+  DERIVED profile drawn heavy; plan canvas with the edge's approximating B-spline drawn heavy, its control
+  points draggable - which ARE the chine vertices, drawn hollow with the control polygon dashed behind; (2) frames: body plan, drag the two handles per frame, "reset all to round",
+  the part of each frame beyond the trim drawn faint with the trim point marked; (3) shaded 3D, quads clipped
+  at the trim, orbit/wheel-zoom/shift-pan, NO overlay lines at all unless "lines" is ticked (2026-09-15, user:
+  "the chine line on the 3d view is not needed" - the trimmed edge used to be drawn unconditionally);
+  (4) unrolled plates, outline cut at the trim. The readout colours only the WARNING lines, not the whole block.
+  State {plan, keel, z1, frames} as JSON + localStorage 'hull-cones-09' (key bumped each time the shape
+  changed; '-06' through '-08' state is not readable).
+  STEP EXPORT: AP214, metres, one OPEN_SHELL of 2N ADVANCED_FACEs. Each plate is still an exact
+  B_SPLINE_SURFACE_WITH_KNOTS degree (3,1) (frame Bezier control net mapped by the homothety about the apex,
+  or translated along the cylinder direction, at two ruling parameters +2% margin; the stem cone keeps lam0=0).
+  Outer loop is now (trim curve, aft seam, keel ruling, fwd seam) - the chine ruling is gone. Seams and the
+  transom edge are truncated at the trim; the trim curve is a clamped cubic B-spline interpolated through ~100
+  sampled points; the trim/seam corner is a shared vertex. Uncertainty 1e-4 m, export ~1.4 s.
+  RHINO ORIENTATION RULE STILL HOLDS: STEP outer loops must run COUNTER-CLOCKWISE in the surface's (u,v)
+  parameter space - v increases aft on every face, u is reversed (chine->keel) for port control nets.
+  test/strict_dom_check.js covers it; the scratch checks that went with the rewrite verified the chine solve,
+  apex-on-keel-line, seam snapping, unroll isometry, STEP accuracy and loop orientation.
+  Its shared JS (helpers, View3D, keelBase/multiChain, meshMulti) is no longer a clean copy of page 05's:
+  View3D shades any polygon (Newell normal, for trimmed quads), multiChain takes an AUTHORED keel
+  (multiChain(V, frames, kv, res)) instead of (m, kz, rake), and the page-05-only code (coneChain, chainItems,
+  drawLines, contourMesh, frameControls, meshQuads, clipPoly/clipSeg) has been deleted here. Page 05 still has
+  the original versions; fixes must be ported by hand, not copied.
+- pages/07-chord-deadrise.html  chord deadrise: what the angle is in section, that it is constant per cone,
+  and the one-beta-per-cone chart (item 21), 2026-09-14. Self-contained; carries its own small copy of the chine /
+  keel / frame-Bezier / cone-section geometry (not the full shared JS of pages 05-06).
 - experiments/seam_tilt_fold.py    seam tilt vs fold angle (numpy)
 - experiments/refine_polyline_chine.py   refinement experiment (item 7)
 - experiments/forward_loft.py   hybrid forward-loft pairing prototype (items 11-16); ~5 min
