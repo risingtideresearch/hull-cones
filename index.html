@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cone-chain bottom — authoring tool</title>
+<style>
+  :root { --ink:#1e2a30; --paper:#f7f6f2; --muted:#7c8a90; --line:#cfd6d9; --ruling:#3aa58a; --seam:#c8512a; --master:#2b6cb0; --keel:#8a4fbf; --fwd:#b8860b; --warn:#b3261e; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:15px/1.55 Georgia, "Times New Roman", serif; }
+  main { max-width:1100px; margin:0 auto; padding:28px 20px 80px; }
+  h1 { font-size:26px; font-weight:normal; margin:0 0 6px; line-height:1.25; }
+  h2 { font-size:20px; font-weight:normal; margin:44px 0 8px; padding-top:18px; border-top:1px solid var(--line); }
+  h3 { font-size:15px; font-weight:600; margin:18px 0 4px; font-family:system-ui, sans-serif; }
+  p { max-width:74ch; margin:0 0 12px; }
+  p.lead { color:var(--muted); margin-bottom:18px; }
+  nav.toc { font:13px/1.7 system-ui, sans-serif; color:var(--muted); margin:0 0 10px; columns:2; column-gap:30px; }
+  nav.toc a { color:var(--ink); text-decoration:none; }
+  nav.toc a:hover { text-decoration:underline; }
+  a { color:var(--master); }
+  figure { margin:14px 0 18px; }
+  figcaption { font:13px/1.5 system-ui, sans-serif; color:var(--muted); margin:6px 0 0; }
+  .controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:8px 28px; margin:0 0 10px; font:13px/1.4 system-ui, sans-serif; }
+  .group h4 { font-size:13px; font-weight:600; margin:0 0 4px; }
+  .group h4 span { font-weight:normal; color:var(--muted); }
+  label { display:flex; align-items:center; gap:8px; color:var(--muted); margin:3px 0; }
+  label span.v { min-width:48px; color:var(--ink); font-variant-numeric:tabular-nums; }
+  input[type=range] { flex:1; accent-color:var(--ink); }
+  select, button { font:13px system-ui, sans-serif; padding:3px 9px; border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:4px; cursor:pointer; }
+  button:hover { border-color:var(--ink); }
+  .bar { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:0 0 8px; font:13px system-ui, sans-serif; color:var(--muted); }
+  canvas { width:100%; display:block; background:#fff; border:1px solid var(--line); border-radius:6px; }
+  canvas.v3 { height:380px; cursor:grab; }
+  canvas.v2 { height:260px; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width:700px) { .row { grid-template-columns:1fr; } }
+  pre.info { font:12.5px/1.65 ui-monospace, Menlo, Consolas, monospace; color:var(--ink); margin:10px 0 0; white-space:pre-wrap; }
+  .tag { display:inline-block; font:11px system-ui, sans-serif; padding:1px 6px; border-radius:3px; background:#e8ebe9; color:var(--muted); vertical-align:middle; }
+  .warn { color:var(--warn); }
+  .key { font:13px/1.6 system-ui, sans-serif; color:var(--muted); }
+  .key i { display:inline-block; width:22px; height:3px; vertical-align:middle; margin-right:5px; border-radius:2px; }
+  ul, ol { max-width:74ch; padding-left:22px; }
+  li { margin:0 0 6px; }
+  table { border-collapse:collapse; font:13px/1.5 system-ui, sans-serif; margin:8px 0 14px; }
+  td, th { border:1px solid var(--line); padding:4px 10px; text-align:left; vertical-align:top; }
+  th { background:#efefec; font-weight:600; }
+  .math { font-family:Georgia, serif; font-style:italic; }
+  svg text { font:12px system-ui, sans-serif; fill:#1e2a30; }
+  .top { display:grid; grid-template-columns: 1fr 340px; gap:16px; align-items:start; }
+  @media (max-width:820px) { .top { grid-template-columns:1fr; } }
+  .panel .group { margin-bottom:12px; }
+  .panel { font:13px/1.4 system-ui, sans-serif; }
+  .note { margin-top:28px; max-width:74ch; color:var(--muted); font-size:14px; }
+  h2 { margin-top:30px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Cone-chain bottom: authoring tool</h1>
+
+<h2>Chine and keel</h2>
+<div class="bar"><span>Profile. Chine vertices: drag up and down. Keel vertices: sideways for rake, up and down for height.</span><button id="resetKeel">reset keel</button><button id="resetChine">reset chine</button></div>
+<canvas id="prof" style="height:230px;cursor:crosshair"></canvas>
+<div class="bar" style="margin-top:8px"><span>Plan. Chine vertices: drag for half-breadth and station.</span></div>
+<canvas id="plan" style="height:200px;cursor:crosshair"></canvas>
+<pre class="info" id="info"></pre>
+
+<h2>Frames</h2>
+<div class="bar"><span>Body plan. Click a frame to select it, drag its two handles. A frame turns red when a seam next to it fails (see the readout above).</span><button id="resetRound">reset all to round</button></div>
+<canvas id="bp" style="height:520px;cursor:crosshair"></canvas>
+
+<h2>Surface</h2>
+<div class="bar"><label><input type="checkbox" id="lines3d"> lines</label><label><input type="checkbox" id="rul"> rulings</label><span>drag to orbit, wheel to zoom, shift-drag to pan</span></div>
+<canvas id="v3" class="v3" style="height:460px"></canvas>
+
+<h2>Plates</h2>
+<div class="bar"><button id="stepBtn">export STEP (AP214, metres)</button><span id="stepMsg"></span></div>
+<p class="key" style="margin:0 0 4px"><i style="background:#1e2a30"></i>chine <i style="background:#8a4fbf"></i>keel <i style="background:#c8512a"></i>seams <i style="background:#2b6cb0"></i>frame of the plate</p>
+<canvas id="unroll" style="height:300px"></canvas>
+
+<div class="group" style="margin-top:22px"><h4>State <span>(JSON)</span></h4>
+<textarea id="state" style="width:100%;height:96px;font:12px ui-monospace,Menlo,monospace;border:1px solid var(--line);border-radius:4px;padding:6px"></textarea>
+<div style="display:flex;gap:6px;margin-top:6px"><button id="apply">apply</button><button id="copyState">copy to clipboard</button></div></div>
+</main>
+
+<script>
+// ---------------------------------------------------------------- shared helpers
+const V=[[0,0,0.9],[2.5,0.85,0.35],[5,1.3,0.1],[7.5,1.3,0.05],[10,0.9,0.15]];
+const NP=13,NU=2*NP-1,KI=NP-1;
+const C={ink:'#1e2a30',muted:'#7c8a90',light:'#b9c3c8',ruling:'#3aa58a',seam:'#c8512a',master:'#2b6cb0',keel:'#8a4fbf',fwd:'#b8860b',warn:'#b3261e'};
+const g=id=>document.getElementById(id);
+const val=id=>+g(id).value;
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const lerp=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const norm=a=>Math.hypot(a[0],a[1],a[2]);
+const unit=a=>mul(a,1/norm(a));
+const mirror=p=>[p[0],-p[1],p[2]];
+const deg=r=>r*180/Math.PI;
+const fmt=(x,n=2)=>(x===undefined||x===null||!isFinite(x))?'n/a':x.toFixed(n);
+function clipPoly(pts){const out=[];for(let i=0;i<pts.length;i++){const p=pts[i];if(p[1]>=-1e-9)out.push(p);else{if(i>0){const q=pts[i-1];out.push(lerp(q,p,q[1]/(q[1]-p[1])));}break;}}return out;}
+function clipSeg(a,b){const ya=a[1],yb=b[1];if(ya>=-1e-9&&yb>=-1e-9)return[a,b];if(ya<0&&yb<0)return null;const c=lerp(a,b,ya/(ya-yb));return ya>=0?[a,c]:[c,b];}
+
+// ---------------------------------------------------------------- orbit viewer
+function prep(c){const x=c.getContext('2d');const dpr=window.devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight;c.width=W*dpr;c.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,W,H);return[x,W,H];}
+const VIEWS={iso:[-0.7,0.95],plan:[0,Math.PI/2],prof:[0,0],body:[-Math.PI/2,0],below:[-0.7,-0.95]};
+class View3D{
+ constructor(id,render){this.cv=g(id);this.render=render;[this.yaw,this.pitch]=VIEWS.iso;this.fit=true;this.items=[];this.c=[0,0,0];
+  let drag=false,pan=false,lx,ly;const dn=e=>{drag=true;pan=!!e.shiftKey;const t=e.touches?e.touches[0]:e;lx=t.clientX;ly=t.clientY;};
+  const mv=e=>{if(!drag)return;const t=e.touches?e.touches[0]:e;const dx=t.clientX-lx,dy=t.clientY-ly;if(pan){this.cx+=dx;this.cy+=dy;}else{this.yaw+=dx*0.01;this.pitch+=dy*0.01;}lx=t.clientX;ly=t.clientY;this.draw();if(e.cancelable)e.preventDefault();};
+  this.cv.addEventListener('mousedown',dn);window.addEventListener('mousemove',mv);window.addEventListener('mouseup',()=>drag=false);
+  this.cv.addEventListener('wheel',e=>{const r=this.cv.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;const k=Math.exp(-e.deltaY*0.0015);this.scale*=k;this.cx=mx-(mx-this.cx)*k;this.cy=my-(my-this.cy)*k;this.draw();e.preventDefault();},{passive:false});
+  this.cv.addEventListener('touchstart',dn,{passive:false});this.cv.addEventListener('touchmove',mv,{passive:false});window.addEventListener('touchend',()=>drag=false);
+  document.querySelectorAll('button[data-v="'+id+'"]').forEach(b=>b.addEventListener('click',()=>{[this.yaw,this.pitch]=VIEWS[b.dataset.p];this.fit=true;this.draw();}));
+  window.addEventListener('resize',()=>{this.fit=true;this.draw();});}
+ proj(q){const p=sub(q,this.c);const ca=Math.cos(this.yaw),sa=Math.sin(this.yaw),cb=Math.cos(this.pitch),sb=Math.sin(this.pitch);const x1=p[0]*ca-p[1]*sa,y1=p[0]*sa+p[1]*ca;return[x1,-(y1*sb+p[2]*cb)];}
+ // items: {t:'poly',pts,col,w,dash,nofit} {t:'pt',p,col,label,r}
+ draw(){const items=this.items=this.render();const[ctx,W,H]=prep(this.cv);
+  if(this.fit){const p3=[];items.forEach(it=>{if(it.nofit)return;if(it.t==='poly'||it.t==='quad')it.pts.forEach(p=>p3.push(p));else p3.push(it.p);});
+   const lo=[0,1,2].map(i=>Math.min(...p3.map(p=>p[i]))),hi=[0,1,2].map(i=>Math.max(...p3.map(p=>p[i])));this.c=[0,1,2].map(i=>(lo[i]+hi[i])/2);const ps=p3.map(p=>this.proj(p));
+   const mnx=Math.min(...ps.map(p=>p[0])),mxx=Math.max(...ps.map(p=>p[0])),mny=Math.min(...ps.map(p=>p[1])),mxy=Math.max(...ps.map(p=>p[1]));
+   this.scale=Math.min((W-60)/Math.max(mxx-mnx,0.5),(H-50)/Math.max(mxy-mny,0.5));this.cx=W/2-this.scale*(mnx+mxx)/2;this.cy=H/2-this.scale*(mny+mxy)/2;this.fit=false;}
+  const Sc=p=>{const q=this.proj(p);return[this.cx+this.scale*q[0],this.cy+this.scale*q[1]];};
+  // shaded quads first, painter's order (farthest first). into-screen direction and a light from the upper left, toward the viewer
+  const cy_=Math.cos(this.yaw),sy_=Math.sin(this.yaw),cp_=Math.cos(this.pitch),sp_=Math.sin(this.pitch);
+  const vin=[sy_*cp_,cy_*cp_,-sp_],e1=[cy_,-sy_,0],e2=[-sy_*sp_,-cy_*sp_,-cp_];const Lt=unit(add(add(mul(vin,-1),mul(e1,-0.45)),mul(e2,-0.7)));
+  const quads=items.filter(it=>it.t==='quad').map(it=>{const n=cross(sub(it.pts[2],it.pts[0]),sub(it.pts[3],it.pts[1]));const nn=norm(n);const sh=nn>0?0.22+0.78*Math.abs(dot(n,Lt))/nn:0.5;
+   const d=it.pts.reduce((a,p)=>a+dot(p,vin),0)/4;return{it,d,sh};}).sort((a,b)=>b.d-a.d);
+  for(const q of quads){const c=q.it.col||[196,204,212];ctx.fillStyle='rgb('+Math.round(c[0]*q.sh)+','+Math.round(c[1]*q.sh)+','+Math.round(c[2]*q.sh)+')';ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=0.5;
+   ctx.beginPath();q.it.pts.forEach((p,i)=>{const s=Sc(p);i?ctx.lineTo(s[0],s[1]):ctx.moveTo(s[0],s[1]);});ctx.closePath();ctx.fill();ctx.stroke();}
+  ctx.font='12px system-ui, sans-serif';
+  for(const it of items){if(it.t==='quad')continue;if(it.t==='poly'){if(it.pts.length<2)continue;ctx.beginPath();ctx.strokeStyle=it.col;ctx.lineWidth=it.w||1;ctx.setLineDash(it.dash||[]);it.pts.forEach((p,i)=>{const q=Sc(p);i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]);});ctx.stroke();ctx.setLineDash([]);}
+   else{const q=Sc(it.p);ctx.beginPath();ctx.arc(q[0],q[1],it.r||3.5,0,7);ctx.fillStyle=it.col;ctx.fill();if(it.label){ctx.fillStyle=it.lcol||C.muted;ctx.fillText(it.label,q[0]+6,q[1]+(it.dy||-6));}}}}
+}
+function wireSliders(ids,fn){ids.forEach(id=>{const e=g(id);if(!e)return;e.addEventListener('input',fn);e.addEventListener('change',fn);});}
+function showVals(ids,n=2){ids.forEach(id=>{const v=g(id+'v');if(v)v.textContent=fmt(val(id),n);});}
+function both(items,pts,col,w,dash){items.push({t:'poly',pts,col,w,dash});items.push({t:'poly',pts:pts.map(mirror),col,w,dash});}
+
+// ---------------------------------------------------------------- cone chain (page 04 logic, generic in V)
+function coneChain(Vc,m,fr,kz,rake,bulge){ // fr = master frame {thK,aK,thC,aC}: tangent angles (deg, from the across axis) and handle lengths (fraction of the chord) at keel and chine
+ const N=Vc.length-1,segs=[],warns=[];
+ for(let j=0;j<N;j++){const A=Vc[j],B=Vc[j+1],d=sub(B,A),dy=d[1];if(Math.abs(dy)<1e-6)segs.push({cyl:true,dir:d});else segs.push({cyl:false,P:add(A,mul(d,-A[1]/dy))});}
+ const rdir=(j,Q)=>segs[j].cyl?segs[j].dir:sub(Q,segs[j].P);
+ const shift=[];for(let v=0;v<=N;v++)shift[v]=(v>0&&v<N&&rake)?(rake[v]||0):0;
+ for(let v=1;v<N;v++)if(Vc[v][0]+shift[v]<Vc[v-1][0]||Vc[v][0]+shift[v]>Vc[v+1][0])warns.push('keel vertex '+v+' raked past a neighbouring chine station');
+ const xv=v=>Vc[v][0]+shift[v];
+ const lineFrom=(j,x0,z0)=>{const q=segs[j];const sl=q.cyl?q.dir[2]/q.dir[0]:(z0-q.P[2])/(x0-q.P[0]);return{s:sl,z:x=>z0+sl*(x-x0)};};
+ const lines=[],kv=[];kv[m]=[xv(m),0,kz];
+ for(let j=m;j<N;j++){lines[j]=lineFrom(j,kv[j][0],kv[j][2]);kv[j+1]=[xv(j+1),0,lines[j].z(xv(j+1))];}
+ for(let j=m-1;j>=0;j--){lines[j]=lineFrom(j,kv[j+1][0],kv[j+1][2]);kv[j]=[xv(j),0,lines[j].z(xv(j))];}
+ for(let j=0;j<N;j++)if(!isFinite(lines[j].s))warns.push('keel line '+j+' is vertical (vertex directly above/below its apex)');
+ const seamX=(v,u)=>Vc[v][0]+shift[v]*(1-u)+((bulge&&bulge[v])||0)*4*u*(1-u);
+ const cut=(j,Q,v,u)=>{const d=rdir(j,Q);return add(Q,mul(d,(seamX(v,u)-Q[0])/d[0]));};
+ const uOf=k=>Math.abs(k-KI)/KI;
+ // master frame: cubic Bezier half-section in the inclined plane through chine vertex and keel vertex
+ const Km=kv[m],yc=Vc[m][1],w=[Vc[m][0]-Km[0],0,Vc[m][2]-Km[2]],dl=norm(w),wh=mul(w,1/dl);
+ const Lc=Math.hypot(yc,dl),tk=fr.thK*Math.PI/180,tc=fr.thC*Math.PI/180;
+ const K1=[fr.aK*Lc*Math.cos(tk),fr.aK*Lc*Math.sin(tk)],C1=[yc-fr.aC*Lc*Math.cos(tc),dl-fr.aC*Lc*Math.sin(tc)];
+ const half=u=>{const b=3*u*(1-u)**2,c=3*u*u*(1-u),e=u**3;const eta=b*K1[0]+c*C1[0]+e*yc,zeta=b*K1[1]+c*C1[1]+e*dl;return add(add(Km,[0,eta,0]),mul(wh,zeta));};
+ const halfT=u=>{const h=1e-5,lo=Math.max(u-h,0),hi=Math.min(u+h,1);return mul(sub(half(hi),half(lo)),1/(hi-lo));};
+ const sec=[];const mf=[];for(let i=NP-1;i>=0;i--)mf.push(half(i/KI));for(let i=1;i<NP;i++)mf.push(mirror(half(i/KI)));sec[m]=mf;
+ for(let j=m;j<N;j++)sec[j+1]=sec[j].map((Q,k)=>j+1<N?cut(j,Q,j+1,uOf(k)):cut(j,Q,j+1,1));
+ for(let j=m-1;j>=0;j--)sec[j]=sec[j+1].map((Q,k)=>j>0?cut(j,Q,j,uOf(k)):cut(j,Q,j,1));
+ // seam folds (starboard side, k from chine to keel), angle between tangent planes of cone v-1 and cone v
+ const seamFold=[];
+ for(let v=1;v<N;v++){const R=sec[v],out=[];for(let k=0;k<=KI;k++){const T=sub(R[Math.min(k+1,NU-1)],R[Math.max(k-1,0)]);const n1=cross(rdir(v-1,R[k]),T),n2=cross(rdir(v,R[k]),T);const c=Math.abs(dot(n1,n2))/(norm(n1)*norm(n2));out.push(deg(Math.acos(Math.min(1,c))));}seamFold[v]=out;}
+ return{N,V:Vc,m,fr,segs,rdir,shift,lines,kv,sec,seamFold,warns,half,halfT};
+}
+function chainItems(ch,opt){opt=opt||{};const it=[];const{N,V:Vc,m,segs,sec,kv,rdir}=ch;const j0=opt.from||0;
+ const ext=opt.ext,okP=q=>!q.cyl&&q.P[0]>-8&&q.P[0]<18;
+ if(opt.rul!==false)for(let j=j0;j<N;j++)for(let k=0;k<NU;k+=2){const c=clipSeg(sec[j][k],sec[j+1][k]);if(!c)continue;both(it,c,opt.rulCol||C.ruling,0.8);
+  if(ext&&okP(segs[j])&&k%4===0){const far=segs[j].P[0]<Vc[j][0]?c[0]:c[1];it.push({t:'poly',pts:[far,segs[j].P],col:C.ruling,w:0.5,dash:[2,4]});}}
+ for(let j=j0;j<N;j++)for(let i=1;i<3;i++)both(it,clipPoly(sec[j].map((Q,k)=>lerp(Q,sec[j+1][k],i/3))),C.light,0.7);
+ for(let j=j0;j<=N;j++)both(it,clipPoly(sec[j]),j===m?C.master:(j>j0&&j<N?C.seam:C.muted),j===m?2.5:(j>j0&&j<N?1.8:1.2));
+ it.push({t:'poly',pts:kv.slice(j0),col:C.keel,w:2});kv.slice(j0).forEach(p=>it.push({t:'pt',p,col:C.keel,r:3}));
+ if(ext)for(let j=j0;j<N;j++){const q=segs[j];if(!okP(q))continue;const near=q.P[0]<Vc[j][0]?kv[j]:kv[j+1];it.push({t:'poly',pts:[near,q.P],col:C.keel,w:0.8,dash:[4,4]});}
+ both(it,Vc.slice(j0),C.ink,2.2);
+ if(opt.apex!==false)for(let j=j0;j<N;j++){const q=segs[j];if(!okP(q))continue;const near=q.P[0]<Vc[j][0]?Vc[j]:Vc[j+1];
+  if(norm(sub(near,q.P))>1e-6){it.push({t:'poly',pts:[near,q.P],col:C.ink,w:0.8,dash:[4,4]});it.push({t:'poly',pts:[mirror(near),q.P],col:C.ink,w:0.8,dash:[4,4]});}
+  it.push({t:'pt',p:q.P,col:C.ink,label:'P'+j});}
+ if(opt.labels!==false){for(let v=Math.max(1,j0+1);v<N;v++)it.push({t:'pt',p:sec[v][0],col:v===m?C.master:C.seam,r:0.1,label:v===m?'master frame':'seam V'+v,lcol:v===m?C.master:C.seam,dy:14});if(m===j0||m===N)it.push({t:'pt',p:sec[m][0],col:C.master,r:0.1,label:'master frame',lcol:C.master,dy:14});}
+ return it;}
+
+
+// ---------------------------------------------------------------- master frame controls (shared by several figures)
+const FRAMES={v:{thK:0,aK:0,thC:90,aC:0,name:'straight V'},round:{thK:0,aK:0.32,thC:90,aC:0.09,name:'round bilge'},flare:{thK:35,aK:0.35,thC:0,aC:0.35,name:'flared (hollow to the chine)'},s:{thK:0,aK:0.35,thC:-10,aC:0.3,name:'S: convex bilge, reverse curve at the chine'}};
+function frameControls(containerId,prefix,onChange,preset){const c=g(containerId);const p=FRAMES[preset||'round'];
+ c.innerHTML='<h4>Master frame <span>(cubic Bézier, keel → chine)</span></h4>'+
+  '<label><span style="white-space:nowrap">Keel tangent angle</span> <input type="range" id="'+prefix+'thK" min="0" max="60" step="1" value="'+p.thK+'"><span class="v" id="'+prefix+'thKv"></span></label>'+
+  '<label><span style="white-space:nowrap">Keel handle</span> <input type="range" id="'+prefix+'aK" min="0" max="0.7" step="0.01" value="'+p.aK+'"><span class="v" id="'+prefix+'aKv"></span></label>'+
+  '<label><span style="white-space:nowrap">Chine tangent angle</span> <input type="range" id="'+prefix+'thC" min="-30" max="90" step="1" value="'+p.thC+'"><span class="v" id="'+prefix+'thCv"></span></label>'+
+  '<label><span style="white-space:nowrap">Chine handle</span> <input type="range" id="'+prefix+'aC" min="0" max="0.7" step="0.01" value="'+p.aC+'"><span class="v" id="'+prefix+'aCv"></span></label>'+
+  '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">'+Object.keys(FRAMES).map(k=>'<button id="'+prefix+'pre_'+k+'">'+FRAMES[k].name.split(' ')[0].replace(':','')+'</button>').join('')+'</div>';
+ const ids=['thK','aK','thC','aC'];
+ const get=()=>{g(prefix+'thKv').textContent=val(prefix+'thK')+'°';g(prefix+'thCv').textContent=val(prefix+'thC')+'°';g(prefix+'aKv').textContent=fmt(val(prefix+'aK'));g(prefix+'aCv').textContent=fmt(val(prefix+'aC'));
+  return{thK:val(prefix+'thK'),aK:val(prefix+'aK'),thC:val(prefix+'thC'),aC:val(prefix+'aC')};};
+ wireSliders(ids.map(i=>prefix+i),onChange);
+ for(const k of Object.keys(FRAMES)){const b=g(prefix+'pre_'+k);if(b)b.addEventListener('click',()=>{ids.forEach(i=>g(prefix+i).value=FRAMES[k][i]);onChange();});}
+ get.set=fr=>{ids.forEach(i=>g(prefix+i).value=fr[i]);};
+ return get;}
+
+// ---------------------------------------------------------------- one frame per cone, seams derived as cone ∩ cone
+function bez2(fr,yc,dl){const Lc=Math.hypot(yc,dl),tk=fr.thK*Math.PI/180,tc=fr.thC*Math.PI/180;
+ const K1=[fr.aK*Lc*Math.cos(tk),fr.aK*Lc*Math.sin(tk)],C1=[yc-fr.aC*Lc*Math.cos(tc),dl-fr.aC*Lc*Math.sin(tc)],Cc=[yc,dl];
+ return{p:u=>{const b=3*u*(1-u)**2,c=3*u*u*(1-u),e=u**3;return[b*K1[0]+c*C1[0]+e*Cc[0],b*K1[1]+c*C1[1]+e*Cc[1]];},
+  d:u=>{const db=3*(1-u)**2-6*u*(1-u),dc=6*u*(1-u)-3*u*u,de=3*u*u;return[db*K1[0]+dc*C1[0]+de*Cc[0],db*K1[1]+dc*C1[1]+de*Cc[1]];}};}
+function multiChain(Vc,m,frs,kz,rake,res){res=res||KI; // frs[j]: frame parameters of cone j, drawn at V[j+1] / K[j+1]. Keel polyline as in coneChain.
+ const base=coneChain(Vc,m,frs[0],kz,rake,null);const{N,segs,rdir,kv}=base;const cones=[];
+ for(let j=0;j<N;j++){const v=j+1,Kv=kv[v],Cv=Vc[v],w=[Cv[0]-Kv[0],0,Cv[2]-Kv[2]],dl=norm(w),wh=mul(w,1/dl),bz=bez2(frs[j],Cv[1],dl);
+  const frame=u=>{const q=bz.p(u);return add(add(Kv,[0,q[0],0]),mul(wh,q[1]));},frameT=u=>{const q=bz.d(u);return add([0,q[0],0],mul(wh,q[1]));};
+  const toX=(Q,X)=>{const q=segs[j];if(!q.cyl&&(X-q.P[0])*(Q[0]-q.P[0])<=0)return null;const d=rdir(j,Q);return add(Q,mul(d,(X-Q[0])/d[0]));};
+  cones.push({j,frame,frameT,toX,secAt:(X,u)=>toX(frame(u),X),Kv,Cv});}
+ const ch={N,V:Vc,m,segs,rdir,kv,lines:base.lines,warns:base.warns.slice(),cones,seams:[],bounds:[]};
+ const chineY=x=>{for(let j=0;j<N;j++)if(x<=Vc[j+1][0]+1e-9)return lerp(Vc[j],Vc[j+1],(x-Vc[j][0])/(Vc[j+1][0]-Vc[j][0]))[1];return Vc[N][1];};
+ // signed distance from a point S to cone A's section at station S.x, in the (y,z) plane: >0 inboard/above the section, <0 outboard/below;
+ // also the frame parameter of the nearest point. Defined everywhere (beyond the chine the sign comes from the last segment), unlike a z-at-y lookup.
+ const NS=40;const sd=(A,S)=>{const X=S[0];const pts=[];for(let i=0;i<=NS;i++){const q=A.secAt(X,i/NS);if(!q)return null;pts.push(q);}
+  let best=1e9,bu=0,bsgn=1;for(let i=0;i<NS;i++){const p=pts[i],q=pts[i+1],dy=q[1]-p[1],dz=q[2]-p[2],L2=dy*dy+dz*dz;let t=L2>0?((S[1]-p[1])*dy+(S[2]-p[2])*dz)/L2:0;t=Math.max(0,Math.min(1,t));
+   const ny=p[1]+t*dy,nz=p[2]+t*dz,d=Math.hypot(S[1]-ny,S[2]-nz);if(d<best){best=d;bu=(i+t)/NS;bsgn=(dy*(S[2]-p[2])-dz*(S[1]-p[1]))>=0?1:-1;}}
+  // refine on the exact section curve near the nearest polyline point (the polyline alone leaves ~1 mm error at a tight bilge)
+  let lo=Math.max(0,bu-1/NS),hi=Math.min(1,bu+1/NS);const dist=u=>{const q=A.secAt(X,u);return q?Math.hypot(S[1]-q[1],S[2]-q[2]):1e9;};
+  for(let k=0;k<30;k++){const m1=lo+(hi-lo)*0.382,m2=lo+(hi-lo)*0.618;if(dist(m1)<dist(m2))hi=m2;else lo=m1;}
+  bu=(lo+hi)/2;const qn=A.secAt(X,bu);if(qn){const T=A.frameT(bu);best=Math.hypot(S[1]-qn[1],S[2]-qn[2]);bsgn=(T[1]*(S[2]-qn[2])-T[2]*(S[1]-qn[1]))>=0?1:-1;}
+  return{d:bsgn*best,u:bu};};
+ // pierce: where does cone B's ruling through B.frame(u) cross cone A? search X in [xlo,xhi], root nearest prev
+ const pierce=(B,A,u,xlo,xhi,prev)=>{const f=X=>{const R=B.secAt(X,u);if(!R)return NaN;const r=sd(A,R);return r?r.d:NaN;};
+  const n=80;let best=null;let xp=xlo,fp=f(xlo);for(let i=1;i<=n;i++){const X=xlo+(xhi-xlo)*i/n,fx=f(X);if(!isNaN(fp)&&!isNaN(fx)&&fp*fx<=0){let a=xp,b=X,fa=fp;for(let k=0;k<40;k++){const c=(a+b)/2,fc=f(c);if(fa*fc<=0)b=c;else{a=c;fa=fc;}}const r=(a+b)/2;if(best===null||Math.abs(r-prev)<Math.abs(best-prev))best=r;}xp=X;fp=fx;}return best;};
+ const foldAt=(A,B,S,uB)=>{const r=sd(A,S);if(!r)return NaN;const n1=cross(rdir(A.j,S),A.frameT(r.u)),n2=cross(rdir(B.j,S),B.frameT(uB));return deg(Math.acos(Math.min(1,Math.abs(dot(n1,n2))/(norm(n1)*norm(n2)))));};
+ for(let v=1;v<N;v++){const A=cones[v-1],B=cones[v],xv=Vc[v][0],h=Math.min(xv-Vc[v-1][0],Vc[v+1][0]-xv);const pts=[],fold=[],miss=[];let prev=xv,outside=false,far=false,exc=0;
+  for(let i=res;i>=0;i--){const u=i/res;let X;if(i===res)X=xv;else{X=pierce(B,A,u,Vc[v-1][0]-0.3,Vc[v+1][0]+0.3,prev);}
+   if(X===null){miss.push(u);pts.push(null);fold.push(NaN);continue;}prev=X;const Sp=B.secAt(X,u);pts.push(Sp);fold.push(i===res?NaN:foldAt(A,B,Sp,u));
+   exc=Math.max(exc,Math.abs(X-xv));if(Sp[1]>chineY(X)+1e-6)outside=true;if(Math.abs(X-xv)>h)far=true;}
+  // section-shape difference at the shared station x_v (both cones pass through V_v and K_v there): max distance between B's section and A's; gearing = excursion / that
+  let dz=0;for(let i=1;i<KI;i++){const q=B.secAt(xv,i/KI);if(q){const r=sd(A,q);if(r)dz=Math.max(dz,Math.abs(r.d));}}
+  if(miss.length)ch.warns.push('seam V'+v+': no intersection of the two cones along '+miss.length+' of '+(res+1)+' rulings');
+  if(outside)ch.warns.push('seam V'+v+' runs outside the chine (plate would poke through the topsides)');
+  if(far)ch.warns.push('seam V'+v+' wanders past a neighbouring chine station');
+  ch.seams[v]={pts,fold:fold.filter(a=>!isNaN(a)),exc,dz,miss:miss.length};}
+ // plate boundaries along each cone's own rulings: forward (seam j on cone j's rulings, or the apex for the stem cone) and aft (seam j+1 pierced from cone j's rulings, or the stern station)
+ for(let j=0;j<N;j++){const B=cones[j];const fwd=[],aft=[];let pf=Vc[j][0],pa=Vc[j+1][0];
+  for(let i=0;i<=res;i++){const u=i/res;
+   if(j===0)fwd.push(Vc[0].slice());else{const S=ch.seams[j].pts[res-i];fwd.push(S);}
+   if(j===N-1)aft.push(B.secAt(Vc[N][0],u));else{const X=i===res?Vc[j+1][0]:pierce(B,cones[j+1],u,Vc[j][0]-0.3,Vc[j+2][0]+0.3,pa);if(X===null)aft.push(null);else{pa=X;aft.push(B.secAt(X,u));}}}
+  ch.bounds[j]={fwd,aft};}
+ return ch;}
+
+// ---------------------------------------------------------------- fine mesh of a multi-frame chain, shaded quads, lines drawing
+function meshMulti(ch,nu,ns){ // per cone: rows over fine u (keel u=0 -> chine u=1), each a polyline of ns+1 points along the ruling from the forward to the aft boundary
+ const out=[];for(let j=0;j<ch.N;j++){const b=ch.bounds[j],cone=ch.cones[j],rows=[];
+  const bx=(arr,u)=>{const i=u*KI,i0=Math.min(KI-1,Math.floor(i)),t=i-i0,a=arr[i0],c=arr[i0+1];return(a&&c)?a[0]+(c[0]-a[0])*t:null;};
+  for(let i=0;i<=nu;i++){const u=i/nu,xa=bx(b.aft,u);let F=null;const A=xa===null?null:cone.secAt(xa,u);
+   if(j===0)F=ch.V[0].slice();else{const xf=bx(b.fwd,u);if(xf!==null)F=cone.secAt(xf,u);}
+   if(!F||!A){rows.push(null);continue;}const pts=[];for(let k=0;k<=ns;k++)pts.push(lerp(F,A,k/ns));rows.push(pts);}
+  out.push(rows);}return out;}
+function meshQuads(mesh,tint){const it=[];mesh.forEach((rows,j)=>{const col=tint?tint(j):[196,204,212];
+ for(let i=0;i+1<rows.length;i++){const r0=rows[i],r1=rows[i+1];if(!r0||!r1)continue;for(let k=0;k+1<r0.length;k++){const q=[r0[k],r0[k+1],r1[k+1],r1[k]];it.push({t:'quad',pts:q,col});it.push({t:'quad',pts:q.map(mirror),col});}}});return it;}
+function contourMesh(mesh,axis,c){ // segments where the plane coord[axis]=c cuts the starboard mesh
+ const segs=[];for(const rows of mesh)for(let i=0;i+1<rows.length;i++){const r0=rows[i],r1=rows[i+1];if(!r0||!r1)continue;
+  for(let k=0;k+1<r0.length;k++){const q=[r0[k],r0[k+1],r1[k+1],r1[k]],xs=[];
+   for(let e=0;e<4;e++){const a=q[e],b=q[(e+1)%4],fa=a[axis]-c,fb=b[axis]-c;if(fa===0&&fb===0)continue;if(fa*fb<=0&&fa!==fb){xs.push(lerp(a,b,fa/(fa-fb)));}}
+   if(xs.length>=2)segs.push([xs[0],xs[1]]);if(xs.length===4)segs.push([xs[2],xs[3]]);}}return segs;}
+function drawLines(cvId,ch,mesh,opts){ // traditional lines of the bottom: profile (buttocks) and half-breadth plan (waterlines) stacked at one scale, body plan (sections) below at a larger scale
+ const[ctx,W,H]=prep(g(cvId));const Vc=ch.V,L=Vc[ch.N][0];const zs=[];mesh.forEach(rows=>rows.forEach(r=>r&&r.forEach(p=>zs.push(p[2]))));const zmin=Math.min(...zs),zmax=Math.max(...Vc.map(p=>p[2]));
+ const ymax=Math.max(...Vc.map(p=>p[1]))*1.05,hz=zmax-zmin,pad=16,gap=22;
+ const sc=Math.min((W-2*pad-40)/L,(H*0.55-gap)/(hz+ymax));const oxL=pad+20,oyProf=pad+sc*hz,oyPlan=oyProf+gap+sc*ymax;
+ const Pp=p=>[oxL+sc*p[0],oyProf-sc*(p[2]-zmin)];const Pl=p=>[oxL+sc*p[0],oyPlan-sc*p[1]];
+ const top=oyPlan+gap+6,scB=Math.min((W-2*pad)/(2*ymax*1.05),(H-top-pad-14)/hz);const oxB=W/2,oyB=top+14+scB*hz;const Pb=(p,side)=>[oxB+side*scB*p[1],oyB-scB*(p[2]-zmin)];
+ const line=(pts,col,w,dash)=>{if(pts.length<2)return;ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;ctx.setLineDash(dash||[]);pts.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.stroke();ctx.setLineDash([]);};
+ const segs=(ss,T,col,w)=>{ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;for(const s of ss){const a=T(s[0]),b=T(s[1]);ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();};
+ ctx.font='11px system-ui, sans-serif';
+ for(const x of[0,2.5,5,7.5,10]){line([Pp([x,0,zmin]),Pp([x,0,zmax])],'#e6e9eb',1);line([Pl([x,0,0]),Pl([x,ymax,0])],'#e6e9eb',1);}
+ line([Pp([0,0,zmin]),Pp([L,0,zmin])],C.light,1);line([Pl([0,0,0]),Pl([L,0,0])],C.light,1);line([Pb([0,-ymax,zmin],1),Pb([0,ymax,zmin],1)],C.light,1);line([Pb([0,0,zmin],1),Pb([0,0,zmax],1)],C.light,1,[3,3]);
+ ctx.fillStyle=C.muted;ctx.fillText('profile: buttocks at y = '+opts.butt.join(', ')+' m',oxL+4,pad-4);ctx.fillText('half-breadth plan: waterlines every '+opts.wlStep+' m',oxL+4,oyProf+gap-6);ctx.fillText('body plan at '+(scB/sc).toFixed(1)+'× the scale: stations every '+opts.stStep+' m, bow half at right, stern half at left',pad,top+8);
+ for(const y of opts.butt)segs(contourMesh(mesh,1,y),Pp,'#6b8f9c',0.9);
+ for(let z=zmin+opts.wlStep/2;z<zmax;z+=opts.wlStep)segs(contourMesh(mesh,2,z),Pl,'#6b8f9c',0.9);
+ for(let x=opts.stStep;x<L-1e-9;x+=opts.stStep){const side=x<=L/2?1:-1;segs(contourMesh(mesh,0,x),p=>Pb(p,side),'#4b6f7c',0.9);}
+ line(Vc.map(Pp),C.ink,1.8);line(Vc.map(Pl),C.ink,1.8);line(ch.kv.map(Pp),C.keel,1.8);
+ for(let v=1;v<ch.N;v++){const p=ch.seams[v].pts.filter(q=>q);line(p.map(Pp),C.seam,1.6);line(p.map(Pl),C.seam,1.6);}
+ ch.cones.forEach((cone,j)=>{const fr=[];for(let i=0;i<=KI;i++)fr.push(cone.frame(i/KI));const side=Vc[j+1][0]<=L/2?1:-1;line(fr.map(p=>Pb(p,side)),C.master,j===opts.cur?2.2:1.1,j===opts.cur?[]:[4,3]);});
+ for(const p of Vc){const q=Pb(p,p[0]<=L/2?1:-1);ctx.fillStyle=C.ink;ctx.beginPath();ctx.arc(q[0],q[1],2.5,0,7);ctx.fill();}
+ ctx.fillStyle=C.muted;for(const x of[0,5,10]){const q=Pl([x,0,0]);ctx.fillText('x='+x,q[0]-8,q[1]+12);}
+ for(const y of opts.butt){const q=Pl([L,y,0]);ctx.fillText(y.toFixed(1),q[0]+4,q[1]+4);}}
+
+// ================================================================ authoring tool
+const V0=[[0,0,0.9],[2.5,0.85,0.35],[5,1.3,0.1],[7.5,1.3,0.05],[10,0.9,0.15]];
+const NCONE=V0.length-1;
+const DEMO=[{thK:20,aK:0.35,thC:10,aC:0.35},{thK:10,aK:0.35,thC:40,aC:0.25},{thK:0,aK:0.32,thC:90,aC:0.09},{thK:0,aK:0.2,thC:90,aC:0.05}];
+const cp=o=>JSON.parse(JSON.stringify(o));
+const KZ0=-0.9;let st={V:cp(V0),frames:cp(DEMO),m:2,kz:KZ0,rake:[0,0,0,0,0]},cur=0,ch=null,mesh=null,loading=false,bad=new Set();
+try{const sv=localStorage.getItem('hull-cones-06');if(sv){const o=JSON.parse(sv);if(o&&o.frames&&o.frames.length===NCONE){st=o;if(!st.V)st.V=cp(V0);}}}catch(e){}
+function loadPanel(){}
+g('resetRound').addEventListener('click',()=>{st.frames=st.frames.map(()=>cp(FRAMES.round));update();});
+g('resetKeel').addEventListener('click',()=>{st.m=2;st.kz=KZ0;st.rake=[0,0,0,0,0];update();});
+g('resetChine').addEventListener('click',()=>{st.V=cp(V0);update();});
+g('apply').addEventListener('click',()=>{try{const o=JSON.parse(g('state').value);if(o.frames&&o.frames.length===NCONE&&o.V&&o.V.length===NCONE+1){st=o;loadPanel();update();}else alert('state needs '+NCONE+' frames and '+(NCONE+1)+' chine vertices');}catch(e){alert('invalid JSON: '+e.message);}});
+g('copyState').addEventListener('click',()=>{try{navigator.clipboard.writeText(g('state').value);}catch(e){}});
+g('lines3d').addEventListener('change',()=>v3.draw());g('rul').addEventListener('change',()=>{v3.draw();drawUnroll();});
+
+// ---- generic drag handling on a 2D canvas: handles = [{p:[px,py], on:(px,py)=>void}]
+function dragger(cv,getHandles){let h=null;const pos=e=>{const r=cv.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return[t.clientX-r.left,t.clientY-r.top];};
+ const pick=px=>{let best=null;for(const hd of getHandles()){const d=Math.hypot(hd.p[0]-px[0],hd.p[1]-px[1]);if(d<12&&(!best||d<best.d))best={hd,d};}return best?best.hd:null;};
+ const dn=e=>{const px=pos(e);const hd=pick(px);if(hd&&hd.click){hd.click();return;}if(!hd)return;h=hd;if(e.cancelable)e.preventDefault();};
+ const mv=e=>{if(!h)return;const px=pos(e);h.on(px[0],px[1]);if(e.cancelable)e.preventDefault();};
+ cv.addEventListener('mousedown',dn);window.addEventListener('mousemove',mv);window.addEventListener('mouseup',()=>h=null);
+ cv.addEventListener('touchstart',dn,{passive:false});cv.addEventListener('touchmove',mv,{passive:false});window.addEventListener('touchend',()=>h=null);}
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const r2=x=>Math.round(x*100)/100;
+
+// ---- profile and plan (chine + keel authoring)
+let PT=null,LT=null;const profH=[],planH=[];
+function xScale(W){const L=st.V[NCONE][0];return{sc:(W-40)/(L+0.6),ox:20+0.3*(W-40)/(L+0.6)};}
+function drawProf(){const[ctx,W,H]=prep(g('prof'));const{sc,ox}=xScale(W);const zs=st.V.map(p=>p[2]).concat(ch.kv.map(p=>p[2]));const zmin=Math.min(...zs)-0.25,zmax=Math.max(...zs)+0.15;
+ const scz=Math.min(sc,(H-24)/(zmax-zmin));const oy=H-12+scz*zmin;const T=p=>[ox+sc*p[0],oy-scz*p[2]];PT={T,sc,scz,ox,oy};
+ const line=(pts,col,w,dash)=>{if(pts.length<2)return;ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;ctx.setLineDash(dash||[]);pts.forEach((q,i)=>{const s=T(q);i?ctx.lineTo(s[0],s[1]):ctx.moveTo(s[0],s[1]);});ctx.stroke();ctx.setLineDash([]);};
+ ctx.font='12px system-ui, sans-serif';line([[-0.3,0,0],[st.V[NCONE][0]+0.3,0,0]],'#eceeef',1);ctx.fillStyle=C.muted;ctx.fillText('z=0',W-40,T([0,0,0])[1]-4);
+ for(let v=0;v<=NCONE;v++)line([[st.V[v][0],0,zmin],[st.V[v][0],0,zmax]],'#eef1f2',1,[3,4]);
+ for(let j=0;j<NCONE;j++)line([ch.kv[j+1],st.V[j+1]],bad.has(j)?C.warn:(j===cur?C.master:'#9dbbe0'),j===cur?2:1.2,[5,4]);
+ line(st.V,C.ink,2);line(ch.kv,C.keel,2);
+ profH.length=0;
+ st.V.forEach((p,v)=>{const s=T(p);ctx.fillStyle=C.ink;ctx.beginPath();ctx.arc(s[0],s[1],5,0,7);ctx.fill();ctx.fillStyle=C.muted;ctx.fillText('V'+v,s[0]+7,s[1]-6);
+  profH.push({p:s,on:(px,py)=>{const x=(px-ox)/sc,z=(oy-py)/scz;if(v>0&&v<NCONE)p[0]=r2(clamp(x,st.V[v-1][0]+0.3,st.V[v+1][0]-0.3));p[2]=r2(z);update();}});});
+ ch.kv.forEach((k,v)=>{const s=T(k);ctx.fillStyle=v===st.m?C.keel:'#fff';ctx.beginPath();ctx.arc(s[0],s[1],v===0?3.5:5.5,0,7);ctx.fill();ctx.strokeStyle=C.keel;ctx.lineWidth=2;if(v>0)ctx.stroke();
+  ctx.fillStyle=C.keel;ctx.fillText('K'+v+(v===st.m?' (authored)':''),s[0]+7,s[1]+14);if(v>0&&v<NCONE&&Math.abs(st.rake[v])>1e-9)ctx.fillText('rake '+(st.rake[v]>0?'+':'')+st.rake[v].toFixed(2),s[0]+7,s[1]+27);
+  if(v>0)profH.push({p:s,on:(px,py)=>{const x=(px-ox)/sc,z=(oy-py)/scz;st.m=v;st.kz=r2(z);if(v<NCONE)st.rake[v]=r2(clamp(x-st.V[v][0],st.V[v-1][0]-st.V[v][0]+0.1,st.V[v+1][0]-st.V[v][0]-0.1));update();}});});}
+function drawPlan(){const[ctx,W,H]=prep(g('plan'));const{sc,ox}=xScale(W);const ymax=Math.max(1.4,...st.V.map(p=>p[1]))+0.15;const scy=Math.min(sc,(H-24)/ymax);const oy=H-12;const T=p=>[ox+sc*p[0],oy-scy*p[1]];LT={T,sc,scy,ox,oy};
+ const line=(pts,col,w,dash)=>{if(pts.length<2)return;ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;ctx.setLineDash(dash||[]);pts.forEach((q,i)=>{const s=T(q);i?ctx.lineTo(s[0],s[1]):ctx.moveTo(s[0],s[1]);});ctx.stroke();ctx.setLineDash([]);};
+ ctx.font='12px system-ui, sans-serif';line([[-0.3,0,0],[st.V[NCONE][0]+0.3,0,0]],C.light,1,[4,4]);ctx.fillStyle=C.muted;ctx.fillText('centreline',W-72,oy-4);
+ for(let v=0;v<=NCONE;v++)line([[st.V[v][0],0,0],[st.V[v][0],ymax,0]],'#eef1f2',1,[3,4]);
+ for(let v=1;v<=NCONE;v++){const k=ch.kv[v];line([[k[0],0,0],[st.V[v][0],st.V[v][1],0]],v-1===cur?C.master:'#9dbbe0',v-1===cur?2:1.2,[5,4]);}
+ line(st.V,C.ink,2);planH.length=0;
+ st.V.forEach((p,v)=>{const s=T(p);ctx.fillStyle=C.ink;ctx.beginPath();ctx.arc(s[0],s[1],5,0,7);ctx.fill();ctx.fillStyle=C.muted;{const lab='V'+v+'  x '+p[0].toFixed(2)+'  y '+p[1].toFixed(2);ctx.fillText(lab,v===NCONE?s[0]-7-lab.length*6.2:s[0]+7,s[1]-6);}
+  if(v>0)planH.push({p:s,on:(px,py)=>{const x=(px-ox)/sc,y=(oy-py)/scy;if(v<NCONE)p[0]=r2(clamp(x,st.V[v-1][0]+0.3,st.V[v+1][0]-0.3));p[1]=r2(clamp(y,0,3));update();}});});
+ ctx.fillStyle=C.muted;for(const x of[0,5,10]){const q=T([x,0,0]);ctx.fillText('x='+x,q[0]-8,q[1]+12);}}
+dragger(g('prof'),()=>profH);dragger(g('plan'),()=>planH);
+
+// ---- body plan (frame authoring)
+const bp=g('bp');let bpT=null;const bpH=[];
+function frameGeom(j){const c=ch.cones[j];const K=c.Kv,Cc=c.Cv,w=[Cc[0]-K[0],0,Cc[2]-K[2]],dl=norm(w),wh=mul(w,1/dl),yc=Cc[1],Lc=Math.hypot(yc,dl);const fr=st.frames[j];
+ const tk=fr.thK*Math.PI/180,tc=fr.thC*Math.PI/180;const K1=[fr.aK*Lc*Math.cos(tk),fr.aK*Lc*Math.sin(tk)],C1=[yc-fr.aC*Lc*Math.cos(tc),dl-fr.aC*Lc*Math.sin(tc)];
+ const toYZ=q=>[q[0],K[2]+wh[2]*q[1]];const fromYZ=p=>[p[0],(p[1]-K[2])/wh[2]];return{K,Cc,yc,dl,Lc,K1,C1,toYZ,fromYZ};}
+function drawBP(){const[ctx,W,H]=prep(bp);const ymin=-0.12,ymax=Math.max(1.5,...st.V.map(p=>p[1]))+0.15;const zs=ch.kv.slice(1).map(p=>p[2]).concat(st.V.slice(1).map(p=>p[2]));let zmin=Math.min(...zs)-0.12,zmax=Math.max(...zs)+0.12;
+ for(let j=0;j<NCONE;j++)for(let i=0;i<=8;i++){const z=ch.cones[j].frame(i/8)[2];zmin=Math.min(zmin,z-0.08);zmax=Math.max(zmax,z+0.08);}
+ const sc=Math.min((W-20)/(ymax-ymin),(H-20)/(zmax-zmin));const ox=10-sc*ymin,oy=H-10+sc*zmin;const T=p=>[ox+sc*p[0],oy-sc*p[1]];bpT={T,sc,ox,oy};
+ const line=(pts,col,w,dash)=>{if(pts.length<2)return;ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;ctx.setLineDash(dash||[]);pts.forEach((q,i)=>{const s=T(q);i?ctx.lineTo(s[0],s[1]):ctx.moveTo(s[0],s[1]);});ctx.stroke();ctx.setLineDash([]);};
+ ctx.font='12px system-ui, sans-serif';line([[0,zmin],[0,zmax]],C.light,1,[4,4]);bpH.length=0;
+ for(let j=0;j<NCONE;j++){const gm=frameGeom(j);const pts=[];for(let i=0;i<=40;i++){const p=ch.cones[j].frame(i/40);pts.push([p[1],p[2]]);}
+  const sel=j===cur,isBad=bad.has(j);const fcol=isBad?C.warn:(sel?C.master:'#8fb0d6');line(pts,fcol,sel?2.6:1.3);
+  const q=T([gm.yc,gm.Cc[2]]);ctx.fillStyle=sel?C.master:C.muted;ctx.fillText('V'+(j+1),q[0]+6,q[1]-4);ctx.fillStyle=C.ink;ctx.beginPath();ctx.arc(q[0],q[1],3,0,7);ctx.fill();
+  const k=T([0,gm.K[2]]);ctx.fillStyle=C.keel;ctx.beginPath();ctx.arc(k[0],k[1],3,0,7);ctx.fill();if(sel){ctx.fillStyle=C.keel;ctx.fillText('K'+(j+1),k[0]-24,k[1]+4);}
+  for(let i=0;i<=40;i+=4)bpH.push({p:T(pts[i]),click:()=>{cur=j;loadPanel();update();}});
+  if(sel){const k1=gm.toYZ(gm.K1),c1=gm.toYZ(gm.C1);line([[0,gm.K[2]],k1],fcol,1,[4,3]);line([[gm.yc,gm.Cc[2]],c1],fcol,1,[4,3]);
+   for(const h of[k1,c1]){const s=T(h);ctx.beginPath();ctx.arc(s[0],s[1],6,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=fcol;ctx.lineWidth=2;ctx.stroke();}
+   const fr=st.frames[j];ctx.fillStyle=fcol;ctx.fillText('keel '+fr.thK.toFixed(0)+'° × '+fr.aK.toFixed(2),T(k1)[0]+9,T(k1)[1]+4);ctx.fillText('chine '+fr.thC.toFixed(0)+'° × '+fr.aC.toFixed(2),T(c1)[0]+9,T(c1)[1]+4);
+   const yz=(px,py)=>[(px-ox)/sc,(oy-py)/sc];
+   bpH.unshift({p:T(k1),on:(px,py)=>{const q=gm.fromYZ(yz(px,py));fr.thK=Math.round(deg(Math.atan2(q[1],q[0])));fr.aK=Math.max(0.01,r2(Math.hypot(q[0],q[1])/gm.Lc));loadPanel();update();}});
+   bpH.unshift({p:T(c1),on:(px,py)=>{const q=gm.fromYZ(yz(px,py));const dx=gm.yc-q[0],dz=gm.dl-q[1];fr.thC=Math.round(deg(Math.atan2(dz,dx)));fr.aC=Math.max(0.01,r2(Math.hypot(dx,dz)/gm.Lc));loadPanel();update();}});}}}
+dragger(bp,()=>bpH);
+
+// ---- 3D
+const v3=new View3D('v3',()=>{const it=[];it.push(...meshQuads(mesh,()=>[200,207,214]));
+ if(g('rul').checked)for(let j=0;j<NCONE;j++){const b=ch.bounds[j];for(let i=0;i<=KI;i+=2){const a=b.fwd[i],c=b.aft[i];if(a&&c)both(it,[a,c],j===cur?C.ruling:'#a9c7bd',0.8);}}
+ if(g('lines3d').checked){for(let j=0;j<NCONE;j++){const fr=[];for(let i=0;i<=KI;i++)fr.push(ch.cones[j].frame(i/KI));both(it,fr,bad.has(j)?C.warn:C.master,j===cur?2.4:1.1,j===cur?[]:[4,3]);}
+  for(let v=1;v<ch.N;v++){const p=ch.seams[v].pts.filter(q=>q);both(it,p,C.seam,2);}
+  it.push({t:'poly',pts:ch.kv,col:C.keel,w:2});both(it,st.V,C.ink,2.2);}
+ return it;});
+
+// ---- unrolled plates (rows along each cone's own rulings: forward boundary A, aft boundary B)
+function clipSegT(a,b){const ya=a[1],yb=b[1];if(ya>=-1e-9&&yb>=-1e-9)return[a,b,0,1];if(ya<0&&yb<0)return null;const t=ya/(ya-yb);const c=lerp(a,b,t);return ya>=0?[a,c,0,t]:[c,b,t,1];}
+const lerp2=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
+function unrollRows(A,B,q,Vj){const ua=[],ub=[];
+ if(q.cyl){const dh=unit(q.dir);let s=0;const across=[];for(let k=0;k<NU;k++){if(k>0){const e=sub(A[k],A[k-1]);const along=dot(e,dh);s+=Math.sqrt(Math.max(0,norm(e)**2-along*along));}across.push(s);}
+  for(let k=0;k<NU;k++){ua.push([dot(sub(A[k],Vj),dh),across[k]]);ub.push([dot(sub(B[k],Vj),dh),across[k]]);}return[ua,ub];}
+ let phi=0;const phis=[],rs=[],rb=[];let prev=null;
+ for(let k=0;k<NU;k++){const r=norm(sub(A[k],q.P)),r2_=norm(sub(B[k],q.P)),dd=r2_>r?sub(B[k],q.P):sub(A[k],q.P),u=mul(dd,1/Math.max(r,r2_));if(prev)phi+=Math.acos(Math.min(1,dot(u,prev)));prev=u;phis.push(phi);rs.push(r);rb.push(r2_);}
+ const sgn=q.P[0]<=Vj[0]+1e-9?1:-1;for(let k=0;k<NU;k++){ua.push([sgn*rs[k]*Math.cos(phis[k]),rs[k]*Math.sin(phis[k])]);ub.push([sgn*rb[k]*Math.cos(phis[k]),rb[k]*Math.sin(phis[k])]);}return[ua,ub];}
+function drawUnroll(){const[ctu,W,H]=prep(g('unroll'));const plates=[];
+ for(let j=0;j<NCONE;j++){const b=ch.bounds[j];const A=[],B=[];let bad=false;for(let k=0;k<NU;k++){const i=Math.abs(k-KI);const a=b.fwd[i],c=b.aft[i];if(!a||!c){bad=true;break;}A.push(k>KI?mirror(a):a);B.push(k>KI?mirror(c):c);}
+  if(bad){plates.push(null);continue;}const[ua,ub]=unrollRows(A,B,ch.segs[j],st.V[j]);const segsU=[],kl=[];
+  for(let k=0;k<NU;k++){const c=clipSegT(A[k],B[k]);if(!c)continue;const p=[lerp2(ua[k],ub[k],c[2]),lerp2(ua[k],ub[k],c[3])];segsU.push({k,p});if(Math.abs(A[k][1])<1e-7&&Math.abs(B[k][1])<1e-7){kl.push(p[0]);kl.push(p[1]);}}
+  const half=(pts3,ptsU)=>{const out=[];for(let k=0;k<NU;k++){if(pts3[k][1]>=-1e-9)out.push(ptsU[k]);else break;}return out;};
+  const sa=half(A,ua),sb=half(B,ub);const all=segsU.flatMap(s=>s.p).concat(sa,sb);
+  const fu=[];for(let k=0;k<=KI;k++){const F=ch.cones[j].frame(1-k/KI);const a=A[k],bq=B[k];const L=norm(sub(bq,a));const t=L>1e-9?dot(sub(F,a),sub(bq,a))/(L*L):0;fu.push(lerp2(ua[k],ub[k],t));}
+  plates.push({j,segsU,sa,sb,kl,fu,mnx:Math.min(...all.map(p=>p[0])),mxx:Math.max(...all.map(p=>p[0])),mny:Math.min(...all.map(p=>p[1])),mxy:Math.max(...all.map(p=>p[1]))});}
+ const ok=plates.filter(p=>p);if(!ok.length)return;let xoff=0;const gap=0.4,gmn=Math.min(...ok.map(p=>p.mny)),gmx=Math.max(...ok.map(p=>p.mxy));
+ for(const p of ok){p.off=xoff-p.mnx;xoff+=p.mxx-p.mnx+gap;}
+ const sc2=Math.min((W-30)/xoff,(H-40)/Math.max(gmx-gmn,0.3));const ox=15,oy=H/2-sc2*(gmn+gmx)/2+6;const T=(p,off)=>[ox+sc2*(p[0]+off),oy+sc2*p[1]];
+ const poly=(pts,off,col,w,dash)=>{if(pts.length<2)return;ctu.beginPath();ctu.strokeStyle=col;ctu.lineWidth=w;ctu.setLineDash(dash||[]);pts.forEach((p,i)=>{const q=T(p,off);i?ctu.lineTo(q[0],q[1]):ctu.moveTo(q[0],q[1]);});ctu.stroke();ctu.setLineDash([]);};
+ ctu.font='12px system-ui, sans-serif';
+ for(const p of ok){const j=p.j;if(g('rul').checked)for(const s of p.segsU)if(s.k%2===0)poly(s.p,p.off,C.ruling,0.6);
+  const chn=p.segsU.find(s=>s.k===0);if(chn)poly(chn.p,p.off,C.ink,1.8);poly(p.kl,p.off,C.keel,1.8);
+  poly(p.sa,p.off,j>0?C.seam:C.muted,1.6);poly(p.sb,p.off,j+1<NCONE?C.seam:C.muted,1.6);poly(p.fu,p.off,bad.has(j)?C.warn:C.master,j===cur?1.8:0.9,[4,3]);
+  const q=T([p.mnx,p.mny],p.off);ctu.fillStyle=C.muted;ctu.fillText('V'+j+'–V'+(j+1),q[0]+4,q[1]-8);}
+ const missing=plates.map((p,j)=>p?null:j).filter(j=>j!==null);if(missing.length){ctu.fillStyle=C.warn;ctu.fillText('not unrolled (seam missing along some rulings): plate '+missing.map(j=>'V'+j+'–V'+(j+1)).join(', '),20,H-10);}}
+
+
+// ---- STEP export: each plate is an exact degree (3,1) B-spline surface (homothety of the frame Bezier about the apex, or translation along the
+// cylinder direction), trimmed by the chine ruling, the keel ruling and the two seams (cubic B-splines interpolated through the seam points).
+// Starboard and port faces in one OPEN_SHELL; seams and keel edges shared between adjacent faces.
+function bsBasis(p,U,i,t){ // Cox-de Boor N_{i,p}(t); t at the right end belongs to the last span
+ const n=U.length-p-2;if(t>=U[n+1]){return i===n?1:0;}
+ const N=[];for(let j=0;j<=p;j++)N.push(t>=U[i+j]&&t<U[i+j+1]?1:0);
+ for(let k=1;k<=p;k++)for(let j=0;j<=p-k;j++){const a=U[i+j+k]-U[i+j],b=U[i+j+k+1]-U[i+j+1];N[j]=(a>0?(t-U[i+j])/a*N[j]:0)+(b>0?(U[i+j+k+1]-t)/b*N[j+1]:0);}return N[0];}
+function interpCubic(Q){const n=Q.length,p=3;const t=[0];for(let k=1;k<n;k++)t.push(t[k-1]+norm(sub(Q[k],Q[k-1])));for(let k=0;k<n;k++)t[k]/=t[n-1];
+ const U=[0,0,0,0];for(let j=1;j<=n-p-1;j++){let a=0;for(let i=j;i<=j+p-1;i++)a+=t[i];U.push(a/p);}U.push(1,1,1,1);
+ const A=[];for(let k=0;k<n;k++){const row=[];for(let i=0;i<n;i++)row.push(bsBasis(p,U,i,t[k]));A.push(row.concat(Q[k]));}
+ for(let c=0;c<n;c++){let piv=c;for(let r=c+1;r<n;r++)if(Math.abs(A[r][c])>Math.abs(A[piv][c]))piv=r;[A[c],A[piv]]=[A[piv],A[c]];const d=A[c][c];for(let j=c;j<n+3;j++)A[c][j]/=d;
+  for(let r=0;r<n;r++)if(r!==c&&A[r][c]!==0){const f=A[r][c];for(let j=c;j<n+3;j++)A[r][j]-=f*A[c][j];}}
+ const ctrl=A.map(row=>row.slice(n));const kn=[],mult=[];for(let i=0;i<U.length;i++){if(kn.length&&Math.abs(U[i]-kn[kn.length-1])<1e-12)mult[mult.length-1]++;else{kn.push(U[i]);mult.push(1);}}
+ return{ctrl,kn,mult,U,t};}
+function evalBs(cv,tt){const n=cv.ctrl.length;let r=[0,0,0];for(let i=0;i<n;i++){const b=bsBasis(3,cv.U,i,tt);if(b)r=add(r,mul(cv.ctrl[i],b));}return r;}
+function stepText(){const res=96;/* seam sampling: 96 rulings keeps the interpolated seam within ~40 µm of both cones (checked on the demo) */const c=multiChain(st.V,st.m,st.frames,st.kz,st.rake,res);if(c.warns.some(w=>/no intersection/.test(w)))throw new Error('a seam is missing along some rulings; fix the red frames first');
+ const N=c.N,Vc=c.V,kv=c.kv;const ents=[];let nid=0;const E=str=>{nid++;ents.push('#'+nid+'='+str+';');return '#'+nid;};
+ const R=x=>{let s=(Math.abs(x)<1e-12?0:x).toFixed(9).replace(/0+$/,'');if(s.endsWith('.'))s+='0';if(s.startsWith('-0.0')&&+s===0)s='0.0';return s;};
+ const P3=p=>E("CARTESIAN_POINT('',("+R(p[0])+","+R(p[1])+","+R(p[2])+"))");
+ const vreg=new Map();const VTX=p=>{const k=p.map(x=>x.toFixed(7)).join(',');if(!vreg.has(k))vreg.set(k,E("VERTEX_POINT('',"+P3(p)+")"));return vreg.get(k);};
+ const lineCurve=(a,b)=>E("B_SPLINE_CURVE_WITH_KNOTS('',1,("+P3(a)+","+P3(b)+"),.UNSPECIFIED.,.F.,.F.,(2,2),(0.0,1.0),.UNSPECIFIED.)");
+ const splineCurve=cv=>E("B_SPLINE_CURVE_WITH_KNOTS('',3,("+cv.ctrl.map(P3).join(',')+"),.UNSPECIFIED.,.F.,.F.,("+cv.mult.join(',')+"),("+cv.kn.map(R).join(',')+"),.UNSPECIFIED.)");
+ const EDGE=(v1,v2,curve)=>E("EDGE_CURVE('',"+v1+","+v2+","+curve+",.T.)");
+ const OE=(edge,fwd)=>E("ORIENTED_EDGE('',*,*,"+edge+","+(fwd?'.T.':'.F.')+")");
+ const mir=p=>[p[0],-p[1],p[2]];
+ // seams (shared edges), oriented chine vertex -> keel vertex; snapped to the exact vertices
+ const seamE={s:[],p:[]},seamPts=[];
+ for(let v=1;v<N;v++){const pts=c.seams[v].pts.map(q=>q.slice());pts[0]=Vc[v].slice();pts[pts.length-1]=kv[v].slice();seamPts[v]=pts;
+  const cs=interpCubic(pts),cpv=interpCubic(pts.map(mir));
+  seamE.s[v]=EDGE(VTX(Vc[v]),VTX(kv[v]),splineCurve(cs));seamE.p[v]=EDGE(VTX(mir(Vc[v])),VTX(kv[v]),splineCurve(cpv));}
+ const keelE=[];for(let j=0;j<N;j++)keelE[j]=EDGE(VTX(kv[j]),VTX(kv[j+1]),lineCurve(kv[j],kv[j+1]));
+ const faces=[];
+ for(let j=0;j<N;j++){const q=c.segs[j],cone=c.cones[j];
+  // frame Bezier control points in 3D (keel -> chine)
+  const K=cone.Kv,Cc=cone.Cv,w=[Cc[0]-K[0],0,Cc[2]-K[2]],dl=norm(w),wh=mul(w,1/dl),yc=Cc[1],Lc=Math.hypot(yc,dl),fr=st.frames[j];
+  const tk=fr.thK*Math.PI/180,tc=fr.thC*Math.PI/180;const to3=e=>add(add(K,[0,e[0],0]),mul(wh,e[1]));
+  const CP=[K,to3([fr.aK*Lc*Math.cos(tk),fr.aK*Lc*Math.sin(tk)]),to3([yc-fr.aC*Lc*Math.cos(tc),dl-fr.aC*Lc*Math.sin(tc)]),Cc];
+  // parameter along the ruling: cone lam = (x-P.x)/(F.x-P.x) (1 at the frame); cylinder lam = (x-F.x)/d.x
+  const lamOf=(S,F)=>q.cyl?(S[0]-F[0])/q.dir[0]:(S[0]-q.P[0])/(F[0]-q.P[0]);
+  let l0=1e9,l1=-1e9;const b=c.bounds[j];for(let i=0;i<=res;i++){const F=cone.frame(i/res);const a=b.fwd[i],d=b.aft[i];if(!a||!d)throw new Error('plate V'+j+'–V'+(j+1)+' has an incomplete boundary');
+   const la=lamOf(a,F),ld=lamOf(d,F);l0=Math.min(l0,la,ld);l1=Math.max(l1,la,ld);}
+  const mg=0.02*(l1-l0);if(!(j===0&&!q.cyl))l0-=mg;l1+=mg; // keep the stem cone's apex exactly at lam=0
+  const at=(Ci,l)=>q.cyl?add(Ci,mul(q.dir,l)):add(q.P,mul(sub(Ci,q.P),l));
+  // surface parameter v must increase AFT so the outer loop below runs counter-clockwise in (u,v): order the two columns by x, not by lam
+  const aftFirst=q.cyl?q.dir[0]<0:(Cc[0]-q.P[0])<0;const lf=aftFirst?l1:l0,la=aftFirst?l0:l1;
+  for(const side of['s','p']){const M=side==='s'?(p=>p):mir;
+   // port: reverse u (chine -> keel) so the mirrored face keeps an outward normal and its loop (seam, keel, seam, chine) is counter-clockwise
+   const CPs=side==='s'?CP:CP.slice().reverse();
+   const rows=CPs.map(Ci=>'('+P3(M(at(Ci,lf)))+','+P3(M(at(Ci,la)))+')');
+   const surf=E("B_SPLINE_SURFACE_WITH_KNOTS('',3,1,("+rows.join(',')+"),.UNSPECIFIED.,.F.,.F.,.F.,(4,4),(2,2),(0.0,1.0),(0.0,1.0),.UNSPECIFIED.)");
+   const chine=EDGE(VTX(M(Vc[j])),VTX(M(Vc[j+1])),lineCurve(M(Vc[j]),M(Vc[j+1])));
+   let loop;
+   if(side==='s'){loop=[OE(chine,true)];if(j<N-1)loop.push(OE(seamE.s[j+1],true));else loop.push(OE(EDGE(VTX(Vc[N]),VTX(kv[N]),lineCurve(Vc[N],kv[N])),true));
+    loop.push(OE(keelE[j],false));if(j>0)loop.push(OE(seamE.s[j],false));}
+   else{loop=[];if(j>0)loop.push(OE(seamE.p[j],true));loop.push(OE(keelE[j],true));if(j<N-1)loop.push(OE(seamE.p[j+1],false));else loop.push(OE(EDGE(VTX(kv[N]),VTX(mir(Vc[N])),lineCurve(kv[N],mir(Vc[N]))),true));loop.push(OE(chine,false));}
+   const el=E("EDGE_LOOP('',("+loop.join(',')+"))");const fb=E("FACE_OUTER_BOUND('',"+el+",.T.)");
+   faces.push(E("ADVANCED_FACE('plate V"+j+"-V"+(j+1)+(side==='s'?" stbd":" port")+"',("+fb+"),"+surf+",.T.)"));}}
+ const shell=E("OPEN_SHELL('',("+faces.join(',')+"))");const model=E("SHELL_BASED_SURFACE_MODEL('',("+shell+"))");
+ const org=P3([0,0,0]),dz=E("DIRECTION('',(0.0,0.0,1.0))"),dx=E("DIRECTION('',(1.0,0.0,0.0))"),ax=E("AXIS2_PLACEMENT_3D('',"+org+","+dz+","+dx+")");
+ const lu=E("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT($,.METRE.))"),au=E("(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.))"),su=E("(NAMED_UNIT(*)SI_UNIT($,.STERADIAN.)SOLID_ANGLE_UNIT())");
+ const unc=E("UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.0E-4),"+lu+",'distance_accuracy_value','')");
+ const ctx=E("(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT(("+unc+"))GLOBAL_UNIT_ASSIGNED_CONTEXT(("+lu+","+au+","+su+"))REPRESENTATION_CONTEXT('','3D'))");
+ const rep=E("MANIFOLD_SURFACE_SHAPE_REPRESENTATION('bottom',("+ax+","+model+"),"+ctx+")");
+ const ac=E("APPLICATION_CONTEXT('automotive design')");E("APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,"+ac+")");
+ const pc=E("PRODUCT_CONTEXT('',"+ac+",'mechanical')"),prod=E("PRODUCT('cone-chain bottom','cone-chain bottom','',("+pc+"))");
+ const pdf=E("PRODUCT_DEFINITION_FORMATION('','',"+prod+")"),pdc=E("PRODUCT_DEFINITION_CONTEXT('part definition',"+ac+",'design')");
+ const pd=E("PRODUCT_DEFINITION('design','',"+pdf+","+pdc+")"),pds=E("PRODUCT_DEFINITION_SHAPE('','',"+pd+")");
+ E("SHAPE_DEFINITION_REPRESENTATION("+pds+","+rep+")");E("PRODUCT_RELATED_PRODUCT_CATEGORY('part','',("+prod+"))");
+ const now=new Date().toISOString().slice(0,19);
+ const txt="ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('cone-chain developable bottom, hull-cones page 06'),'2;1');\nFILE_NAME('bottom.step','"+now+"',(''),(''),'hull-cones','hull-cones page 06','');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n"+ents.join('\n')+"\nENDSEC;\nEND-ISO-10303-21;\n";
+ return{txt,chain:c,seamPts};}
+g('stepBtn').addEventListener('click',()=>{g('stepMsg').textContent='computing seams at 96 rulings…';setTimeout(()=>{try{const{txt}=stepText();const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'application/step'}));a.download='bottom.step';document.body.appendChild(a);a.click();document.body.removeChild(a);
+ g('stepMsg').textContent='bottom.step written ('+(txt.length/1024).toFixed(0)+' kB, '+(2*NCONE)+' faces)';}catch(e){g('stepMsg').textContent='export failed: '+e.message;}},20);});
+
+// ---- update everything
+function update(){ch=multiChain(st.V,st.m,st.frames,st.kz,st.rake);mesh=meshMulti(ch,48,32);
+ for(let j=0;j<NCONE;j++){let ok=true,py=-1;for(let i=0;i<=40;i++){const y=ch.cones[j].frame(i/40)[1];if(y<py-1e-6)ok=false;py=y;}if(!ok)ch.warns.push('frame of cone V'+j+'–V'+(j+1)+' overhangs (half-breadth not monotone)');}
+ bad=new Set();for(const w of ch.warns){let m=/^seam V(\d+)/.exec(w);if(m){bad.add(+m[1]-1);bad.add(+m[1]);}m=/^frame of cone V(\d+)/.exec(w);if(m)bad.add(+m[1]);}
+ let s='';for(let v=1;v<ch.N;v++){const sm=ch.seams[v];s+='seam V'+v+': excursion '+fmt(100*sm.exc,0)+' cm, shape difference '+fmt(100*sm.dz,1)+' cm'+(sm.dz>1e-4?' (gearing '+fmt(sm.exc/sm.dz,1)+':1)':'')+', fold '+(sm.fold.length?fmt(Math.min(...sm.fold),1)+'–'+fmt(Math.max(...sm.fold),1)+'°':'n/a')+'\n';}
+ s+='keel: '+ch.kv.map((p,i)=>'K'+i+'=('+fmt(p[0])+', '+fmt(p[2])+')').join('  ')+'   knuckles '+[1,2,3].map(j=>fmt(deg(Math.atan(ch.lines[j].s)-Math.atan(ch.lines[j-1].s)),1)+'°').join(' ')+'\n';
+ s+='cones: '+ch.segs.map((q,j)=>'V'+j+'–V'+(j+1)+' '+(q.cyl?'cylinder':'apex x='+fmt(q.P[0]))).join('   ')+'\n';
+ for(const w of ch.warns)s+='WARNING: '+w+'\n';g('info').textContent=s;g('info').style.color=ch.warns.length?C.warn:C.ink;
+ g('state').value=JSON.stringify(st);try{localStorage.setItem('hull-cones-06',JSON.stringify(st));}catch(e){}
+ drawProf();drawPlan();drawBP();v3.draw();drawUnroll();}
+window.addEventListener('resize',()=>{drawProf();drawPlan();drawBP();drawUnroll();});
+loadPanel();update();
+</script>
+</body>
+</html>

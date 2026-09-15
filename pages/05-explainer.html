@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A chain of cones under a polyline chine — interactive explainer</title>
+<style>
+  :root { --ink:#1e2a30; --paper:#f7f6f2; --muted:#7c8a90; --line:#cfd6d9; --ruling:#3aa58a; --seam:#c8512a; --master:#2b6cb0; --keel:#8a4fbf; --fwd:#b8860b; --warn:#b3261e; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:15px/1.55 Georgia, "Times New Roman", serif; }
+  main { max-width:960px; margin:0 auto; padding:28px 20px 80px; }
+  h1 { font-size:26px; font-weight:normal; margin:0 0 6px; line-height:1.25; }
+  h2 { font-size:20px; font-weight:normal; margin:44px 0 8px; padding-top:18px; border-top:1px solid var(--line); }
+  h3 { font-size:15px; font-weight:600; margin:18px 0 4px; font-family:system-ui, sans-serif; }
+  p { max-width:74ch; margin:0 0 12px; }
+  p.lead { color:var(--muted); margin-bottom:18px; }
+  nav.toc { font:13px/1.7 system-ui, sans-serif; color:var(--muted); margin:0 0 10px; columns:2; column-gap:30px; }
+  nav.toc a { color:var(--ink); text-decoration:none; }
+  nav.toc a:hover { text-decoration:underline; }
+  a { color:var(--master); }
+  figure { margin:14px 0 18px; }
+  figcaption { font:13px/1.5 system-ui, sans-serif; color:var(--muted); margin:6px 0 0; }
+  .controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:8px 28px; margin:0 0 10px; font:13px/1.4 system-ui, sans-serif; }
+  .group h4 { font-size:13px; font-weight:600; margin:0 0 4px; }
+  .group h4 span { font-weight:normal; color:var(--muted); }
+  label { display:flex; align-items:center; gap:8px; color:var(--muted); margin:3px 0; }
+  label span.v { min-width:48px; color:var(--ink); font-variant-numeric:tabular-nums; }
+  input[type=range] { flex:1; accent-color:var(--ink); }
+  select, button { font:13px system-ui, sans-serif; padding:3px 9px; border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:4px; cursor:pointer; }
+  button:hover { border-color:var(--ink); }
+  .bar { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:0 0 8px; font:13px system-ui, sans-serif; color:var(--muted); }
+  canvas { width:100%; display:block; background:#fff; border:1px solid var(--line); border-radius:6px; }
+  canvas.v3 { height:380px; cursor:grab; }
+  canvas.v2 { height:260px; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width:700px) { .row { grid-template-columns:1fr; } }
+  pre.info { font:12.5px/1.65 ui-monospace, Menlo, Consolas, monospace; color:var(--ink); margin:10px 0 0; white-space:pre-wrap; }
+  .tag { display:inline-block; font:11px system-ui, sans-serif; padding:1px 6px; border-radius:3px; background:#e8ebe9; color:var(--muted); vertical-align:middle; }
+  .warn { color:var(--warn); }
+  .key { font:13px/1.6 system-ui, sans-serif; color:var(--muted); }
+  .key i { display:inline-block; width:22px; height:3px; vertical-align:middle; margin-right:5px; border-radius:2px; }
+  ul, ol { max-width:74ch; padding-left:22px; }
+  li { margin:0 0 6px; }
+  table { border-collapse:collapse; font:13px/1.5 system-ui, sans-serif; margin:8px 0 14px; }
+  td, th { border:1px solid var(--line); padding:4px 10px; text-align:left; vertical-align:top; }
+  th { background:#efefec; font-weight:600; }
+  .math { font-family:Georgia, serif; font-style:italic; }
+  svg text { font:12px system-ui, sans-serif; fill:#1e2a30; }
+</style>
+</head>
+<body>
+<main>
+<h1>A chain of cones under a polyline chine</h1>
+<p class="lead">How a hard-chine hull whose lowest chine is a polyline gets a curved, developable bottom: one cone per chine segment, creased at the chine vertices, shaped by one master frame, with the keel authored by one height and a rake per vertex. Every figure is live: drag a 3D view to orbit it, move the sliders, read the derived numbers. Demo hull is 10&nbsp;m, bow at x=0, starboard is +y, centreplane is y=0. Results marked <span class="tag">numerical</span> were only checked on this demo hull; the rest are arguments.</p>
+
+<nav class="toc">
+<a href="#s1">1. The plain loft is flat</a><br>
+<a href="#s2">2. A chine segment and its mirror meet at an apex</a><br>
+<a href="#s3">3. One cone and its master frame</a><br>
+<a href="#s4">4. Building the chain, step by step</a><br>
+<a href="#s5">5. Using the free seam: one frame per cone</a><br>
+<a href="#s6">6. Seams are creases; keel vertices sit under chine vertices</a><br>
+<a href="#s7">7. Authoring the keel: heights are ill-conditioned, rakes are not</a><br>
+<a href="#s8">8. The design, with unrolled plates</a><br>
+<a href="#s9">9. How many cones? Smoothness, creases and drag</a><br>
+<a href="#s10">10. What the designer controls</a>
+</nav>
+
+<!-- ================================================================ 1 -->
+<h2 id="s1">1. The plain loft is flat</h2>
+<p>The tool builds a bottom by lofting a developable between the lowest starboard longitudinal (the chine) and its port mirror. With a polyline chine that loft comes out flat, and the reason is symmetry. A developable is ruled. The surface is its own mirror image, so the mirror of any ruling is also a ruling, and the plane through a line and its mirror image is invariant under the reflection: perpendicular to the centreplane, horizontal in section. Along a straight chine segment the tangent plane is constant (section 6); it contains the segment and a mirror-symmetric ruling, so it is horizontal in section. Zero deadrise under every segment.</p>
+<figure>
+<div class="bar"><button data-v="f1" data-p="iso">Perspective</button><button data-v="f1" data-p="plan">Plan</button><button data-v="f1" data-p="prof">Profile</button><button data-v="f1" data-p="body">Body plan</button><span>drag to orbit, wheel to zoom, shift-drag to pan</span></div>
+<canvas id="f1" class="v3"></canvas>
+<figcaption>The demo chine polyline V0…V4 (black), its mirror, and the transverse rulings of the flat loft (green). In the body plan every section is a horizontal line.</figcaption>
+</figure>
+
+<!-- ================================================================ 2 -->
+<h2 id="s2">2. A chine segment and its mirror meet at an apex</h2>
+<p>Take a chine segment A→B and its mirror. Unless the two half-breadths are equal, the two lines meet on the centreplane at</p>
+<p class="math">P = A + t(B − A), &nbsp; t = −y<sub>A</sub> / (y<sub>B</sub> − y<sub>A</sub>).</p>
+<p>The cone with apex P through the two segments is developable and symmetric, so it is a candidate bottom panel with real deadrise. If y<sub>A</sub> = y<sub>B</sub> the lines are parallel and the apex is at infinity: the panel is a generalized cylinder with rulings parallel to B−A. On the demo hull segment V2–V3 is that case, so the code carries a cylinder branch explicitly. When A is on the centreline (the stem head V0) the apex is A itself.</p>
+<figure>
+<div class="controls">
+<div class="group"><h4>Half-breadths <span>(plan view, x<sub>A</sub>=2.5, x<sub>B</sub>=5)</span></h4>
+<label>y<sub>A</sub> <input type="range" id="f2ya" min="0" max="1.5" step="0.01" value="0.85"><span class="v" id="f2yav"></span></label>
+<label>y<sub>B</sub> <input type="range" id="f2yb" min="0" max="1.5" step="0.01" value="1.3"><span class="v" id="f2ybv"></span></label>
+</div></div>
+<canvas id="f2" class="v2"></canvas>
+<pre class="info" id="f2info"></pre>
+<figcaption>Plan view. The segment and its mirror, extended (dashed) to their meeting point P. Set the half-breadths equal to see the cylinder case.</figcaption>
+</figure>
+
+<!-- ================================================================ 3 -->
+<h2 id="s3">3. One cone and its master frame</h2>
+<p>The chine segment passes through the apex, so it is a <em>ruling</em> of the cone, not a curve that rulings cross. Consequences:</p>
+<ul>
+<li><b>One frame fixes the patch.</b> Every transverse section is a scaled copy of every other, scaled about P. A point Q of the authored half-section (the master frame) maps to station x by Q ↦ Q + t(Q − P), t = (x − Q<sub>x</sub>)/(Q<sub>x</sub> − P<sub>x</sub>); for the cylinder it slides along B−A.</li>
+<li><b>The keel is one straight line per cone.</b> It is the ruling through P and the master frame's keel point. Its fore-and-aft slope is not free once the keel point is chosen.</li>
+<li><b>The master frame is the only shape control</b>, and it is worth making expressive. Here it is a cubic Bézier from the keel point to the chine point with a tangent angle and a handle length at each end. Keel angle 0 with a positive handle gives a horizontal keel tangent; a positive keel angle gives a V with a knuckle along the keel (fold = 2 × angle in every frame). Chine angle near 90° with a positive handle gives a round bilge. A chine angle below the chord angle makes the section hollow toward the chine, which is flare: the bottom flattens outward and throws spray. A negative chine angle turns the edge back down into a reverse curve. The presets below show the range.</li>
+</ul>
+<figure>
+<div class="controls">
+<div class="group" id="f3frame"></div>
+<div class="group"><h4>Position</h4>
+<label>Keel drop below chine <input type="range" id="f3d" min="0.05" max="0.8" step="0.01" value="0.35"><span class="v" id="f3dv"></span></label>
+</div></div>
+<div class="bar"><button data-v="f3" data-p="iso">Perspective</button><button data-v="f3" data-p="plan">Plan</button><button data-v="f3" data-p="prof">Profile</button><button data-v="f3" data-p="body">Body plan</button><label><input type="checkbox" id="f3ext" checked> extend rulings to the apex</label></div>
+<canvas id="f3" class="v3"></canvas>
+<pre class="info" id="f3info"></pre>
+<figcaption>The cone under V1–V2 with its master frame (blue) at V2, homothetic copies (grey) at intermediate stations and one extrapolated copy aft of V2 (dotted). Rulings converge on P<sub>1</sub>. Body plan: all sections have the same shape. Try the flared preset in the body plan.</figcaption>
+</figure>
+
+<!-- ================================================================ 4 -->
+<h2 id="s4">4. Building the chain, step by step</h2>
+<p>The whole bottom is fixed by the chine polyline, one master frame and the keel authoring. The construction is a march outward from the master frame, one cone at a time. Step through it below; the text follows the same numbering.</p>
+<ol>
+<li><b>Chine and mirror.</b> The polyline V0…V4 on starboard and its port mirror. Everything else is derived from these and a handful of numbers.</li>
+<li><b>Apexes.</b> For each segment, extend the segment and its mirror until they meet on the centreplane: P<sub>0</sub> = V0 (the stem is on the centreline), P<sub>1</sub> forward of the bow for V1–V2 (half-breadth increasing aft), no apex for V2–V3 (equal half-breadths: a cylinder with rulings parallel to V3−V2), P<sub>3</sub> aft of the stern for V3–V4 (half-breadth decreasing aft).</li>
+<li><b>Master frame.</b> Choose a chine vertex, here V2, and a keel vertex K2 under it: authored height, and an authored rake fore or aft of the station. The frame is drawn in the plane through V2, its mirror and K2, so it is inclined when K2 is raked. Its shape is the cubic of section 3, sampled at NP=13 points from chine to keel and mirrored to a full section of 25 points.</li>
+<li><b>First cone aft: V2–V3.</b> This segment is the cylinder. Every point of the master frame slides along the direction V3−V2 until it reaches the seam at V3, giving the section at V3. The lines swept out are the rulings; the surface between is the plate.</li>
+<li><b>Next cone aft: V3–V4.</b> The section at V3 now lies on the new cone too, by construction: each of its points is projected along the line through P<sub>3</sub> to the station of V4. So the seam at V3 is exactly shared by the two cones, watertight, but the two surfaces meet at an angle there (section 6). The keel point travels along the ruling through P<sub>3</sub>, which is why the keel under this cone is straight and passes through P<sub>3</sub>.</li>
+<li><b>Forward: V1–V2.</b> Same operation from the master frame toward the bow: each frame point is carried along the line from P<sub>1</sub> through the point to the station of V1.</li>
+<li><b>Stem cone: V0–V1.</b> Its apex is the stem point itself, so the section at V1 projects to a single point: the cone closes at the stem. Because of this, the keel meets the chine at the stem and the stem keel vertex is not free.</li>
+<li><b>Keel and seams.</b> The keel polyline K0…K4 is the trail of the frame's keel point, one straight line per cone, each through its apex. A seam can be any curve on the previous cone: it is defined per ruling by where along the ruling the next cone takes over, x = x<sub>V</sub> + rake·(1−u) + bulge·4u(1−u) with u = 0 at the keel and 1 at the chine. Transverse seams are the default. The slider lets you rake the seam at V3.</li>
+</ol>
+<figure>
+<div class="controls">
+<div class="group"><h4>Step</h4>
+<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button id="f4prev">◀ back</button><span id="f4step" style="min-width:230px;color:var(--ink)"></span><button id="f4next">next ▶</button></div>
+</div>
+<div class="group"><h4>Options</h4>
+<label>Rake of the seam at V3 <input type="range" id="f4rk" min="-0.8" max="0.8" step="0.05" value="0"><span class="v" id="f4rkv"></span></label>
+<label>Rake of K2 (master vertex) <input type="range" id="f4r2" min="-0.8" max="0.8" step="0.05" value="0"><span class="v" id="f4r2v"></span></label>
+</div></div>
+<div class="bar"><button data-v="f4" data-p="iso">Perspective</button><button data-v="f4" data-p="plan">Plan</button><button data-v="f4" data-p="prof">Profile</button><button data-v="f4" data-p="body">Body plan</button></div>
+<canvas id="f4" class="v3"></canvas>
+<pre class="info" id="f4info"></pre>
+<figcaption>Construction sequence. Black: chine. Blue: master frame. Green: rulings of the cone being built (dashed to its apex). Orange: seams already built. Purple: keel.</figcaption>
+</figure>
+<p>Two details that the steps gloss over. First, the order of the march is what makes seams free: the seam at V3 is drawn on the V2–V3 cylinder, so it can have any shape and the V3–V4 cone simply passes through it; but a seam is never drawn on the cone <em>after</em> it, so shapes are inherited outward from the master, never inward. Second, the rulings are the same lines in both directions of the march. Going aft from the master the section is projected away from P<sub>3</sub>; going forward it is projected toward P<sub>1</sub>. Both are the homothety of section 3 with t of the appropriate sign.</p>
+
+<!-- ================================================================ 5 -->
+<h2 id="s5">5. Using the free seam: one frame per cone</h2>
+<p>Step 8 said the seam can be any curve on the earlier cone. That freedom is worth more than a rake and a bulge, because the next cone is fixed by its apex and the seam alone: <em>the seam is the shape control of the next cone.</em> With a transverse seam the next cone's sections are scaled copies of the master frame; with any other seam they are scaled copies of the seam's projection from the apex, a different curve. So the same freedom can be held the other way round, which is how a designer would want it: give every cone its own frame, and derive the seam between two cones as their intersection curve.</p>
+<p>Construction. Cone j gets a frame drawn at its aft chine vertex V<sub>j+1</sub>, from the keel vertex K<sub>j+1</sub> of the authored keel polyline to V<sub>j+1</sub>, in the same inclined plane as before, with its own tangent angles and handles. Its sections are the homothetic copies of that frame. Adjacent cones share two points: the chine vertex (each cone's chine ruling ends there; the rulings themselves are different lines) and the keel vertex (both keel lines pass through it). Their intersection is a curve through those two points, and because the two surfaces cross at the fold angle rather than touching, it is a well-defined curve from the chine vertex down to the keel vertex. The figure finds it along each ruling of the aft cone by bracketing and bisection, and checks the result from the forward cone's rulings as well. When all frames have the same parameters and no rake the seams come out transverse and the chain is the one from section 4; anything else bends the seams.</p>
+<p>What it buys: a section shape that changes along the hull, for example flared forward, round amidships, a flatter V aft, which a single master frame cannot give because all its sections are the same curve scaled. What it costs is set by the fold. The aft cone's ruling leaves the forward cone at the fold angle, so a shape difference δ between the two frames moves the seam fore-and-aft by about δ / tan(fold). <span class="tag">numerical</span> On the demo the measured gearing is 7:1 to 9:1 (folds 6–9°): a few centimetres of section shape cost tens of centimetres of seam excursion, e.g. opening the aft cone's keel handle from 0.32 to 0.50 changes its sections by 2.4 cm and moves seam V3 by 22 cm, and a large shape change sends the seam past the neighbouring station, outside the chine, or makes the two cones miss each other along some rulings, all of which the readout flags. The rake and bulge of page 04 are the same freedom parametrized from the seam side, which is why a large bulge changes the next cone's sections so little.</p>
+<figure>
+<div class="controls">
+<div class="group"><h4>Cone to edit</h4>
+<label>Cone <select id="f9cone"><option value="0" selected>V0–V1 (stem)</option><option value="1">V1–V2</option><option value="2">V2–V3</option><option value="3">V3–V4</option></select></label>
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"><button id="f9same">copy this frame to all cones</button><button id="f9reset">reset (flared → round → flat)</button></div>
+</div>
+<div class="group" id="f9frame"></div>
+</div>
+<div class="bar"><button data-v="f9" data-p="iso">Perspective</button><button data-v="f9" data-p="plan">Plan</button><button data-v="f9" data-p="prof">Profile</button><button data-v="f9" data-p="body">Body plan</button><button data-v="f9" data-p="below">From below</button><label><input type="checkbox" id="f9shade" checked> shaded</label><label><input type="checkbox" id="f9rul"> rulings</label></div>
+<canvas id="f9" class="v3"></canvas>
+<p class="key" style="margin:8px 0 4px">Lines of the bottom. <i style="background:#1e2a30"></i>chine <i style="background:#8a4fbf"></i>keel <i style="background:#c8512a"></i>seams <i style="background:#2b6cb0"></i>frames <i style="background:#6b8f9c"></i>waterlines, buttocks, sections</p>
+<canvas id="f9lines" style="height:560px"></canvas>
+<pre class="info" id="f9info"></pre>
+<figcaption>Top: the bottom shaded, seen from above by default; "From below" shows it as the water sees it. Creases appear as shading breaks along the seams (orange). Frames blue, solid for the cone being edited. Below: traditional lines of the bottom. In the profile and the half-breadth plan the seams are the curves that are not straight station lines; in the body plan the sections change character from the flared bow half (right) to the round and flat stern half (left). Press "copy this frame to all cones" to recover transverse seams and identical sections.</figcaption>
+</figure>
+
+<!-- ================================================================ 6 -->
+<h2 id="s6">6. Seams are creases; keel vertices sit under chine vertices</h2>
+<p><b>The seams are creases, whatever their shape.</b> A non-planar developable contains a straight line only as a ruling, so along a straight chine segment the tangent plane of any developable bottom is constant. Adjacent segments carry two different constant planes, and they can only agree if three consecutive chine segments are coplanar. A polyline with real corners cannot bound a G1 developable. Reshaping the seam (rake, bulge) moves the fold by a degree or two and does not remove it: <span class="tag">numerical</span> the fold at the chine end is set by the chine corner and the frame tangent there, the fold at the keel end by the change of keel slope, and a seam only changes what happens between.</p>
+<p><b>Sub-dividing a chine segment adds nothing.</b> Two collinear sub-segments have the same apex, so their cones are the same cone, the new seam has zero fold, and the keel line does not bend there. Keel vertices exist only under chine vertices. Tick the box below to see it.</p>
+<figure>
+<div class="controls">
+<div class="group"><h4>Seam at V2 <span>(master frame at V2, round bilge)</span></h4>
+<label>Inner shift (rake) <input type="range" id="f5r" min="-1.5" max="1.5" step="0.01" value="0"><span class="v" id="f5rv"></span></label>
+<label>Mid bulge <input type="range" id="f5b" min="-0.5" max="0.5" step="0.01" value="0"><span class="v" id="f5bv"></span></label>
+</div>
+<div class="group"><h4>Sub-division</h4>
+<label><input type="checkbox" id="f5split"> split chine segment V1–V2 at its midpoint</label>
+</div></div>
+<div class="bar"><button data-v="f5" data-p="iso">Perspective</button><button data-v="f5" data-p="plan">Plan</button><button data-v="f5" data-p="prof">Profile</button><button data-v="f5" data-p="body">Body plan</button></div>
+<canvas id="f5" class="v3"></canvas>
+<pre class="info" id="f5info"></pre>
+<figcaption>The full chain, seams orange, keel purple. Fold = angle between the two cones' tangent planes along a seam. With the split on, the extra seam (grey) has zero fold and the keel is unchanged.</figcaption>
+</figure>
+
+<!-- ================================================================ 7 -->
+<h2 id="s7">7. Authoring the keel: heights are ill-conditioned, rakes are not</h2>
+<p>Each keel line is pinned by its apex, so it has one degree of freedom, and the keel polyline has one per cone plus nothing else. The natural first idea, author the keel <em>height</em> at each vertex, was tried and works badly: an interior keel vertex is then the intersection of two lines that meet at the small knuckle angle, so its fore-and-aft position swings by many centimetres for a centimetre of height, and it runs off the hull entirely as the knuckle approaches zero, which is exactly the fair keel one is aiming for.</p>
+<p>Author the other way round: one height at the master vertex, and for every interior vertex its fore-and-aft <em>rake</em> off the chine station. Each keel line passes through its apex and the vertex nearer the master, and the next vertex's height follows by intersecting the station. Heights and keel drop are derived, and the derivation is benign because a keel line is nearly horizontal: a decimetre of rake changes the derived height by millimetres. The stem vertex is the chine's stem point because P<sub>0</sub> is that point.</p>
+<figure>
+<div class="controls">
+<div class="group"><h4>Height authoring, profile view <span>(K3 fixed, cylinder aft of V2)</span></h4>
+<label>Authored height of K1 <input type="range" id="f6z" min="-0.25" max="0.45" step="0.005" value="0.12"><span class="v" id="f6zv"></span></label>
+</div></div>
+<canvas id="f6" class="v2"></canvas>
+<pre class="info" id="f6info"></pre>
+<figcaption>Profile. Keel line 1 through P<sub>1</sub> and the authored K1; keel line 2 through the fixed K3 with the cylinder's slope. K2 (purple) is their intersection; the bar shows where K2 lands for K1 ± 1&nbsp;cm. Slide K1 up toward a straight keel and watch K2 leave the hull.</figcaption>
+</figure>
+
+<!-- ================================================================ 8 -->
+<h2 id="s8">8. The design, with unrolled plates</h2>
+<p>Everything together. Apexes pinned on the centreplane by the chine. One master frame (shape, station), drawn in the inclined plane through the chine vertex, its mirror and the keel vertex. Keel by one height and three rakes. Seams transverse by default with an optional mid-bulge; the inner shift equals the rake. Warnings when a keel vertex is raked past a neighbouring chine station or a keel line goes vertical.</p>
+<p>Plates unroll exactly because each is a cone or cylinder. Cone: polar coordinates about the apex, radius = distance to P, angle = accumulated angle between successive rulings at P, with the ruling direction taken from the end farther from P (the stem cone is degenerate at its apex). Cylinder: distance along the ruling and arc length across.</p>
+<figure>
+<div class="controls">
+  <div class="group" id="f7frame"></div>
+  <div class="group"><h4>Master vertex</h4>
+    <label>Station <select id="f7m"><option value="1">V1</option><option value="2" selected>V2</option><option value="3">V3</option></select></label>
+    <label>Master keel z <input type="range" id="f7kz" min="-0.8" max="1.0" step="0.01" value="-0.25"><span class="v" id="f7kzv"></span></label>
+    <h4 style="margin-top:8px">Keel vertex rakes</h4>
+    <label>Rake V1 <input type="range" id="f7r1" min="-1.5" max="1.5" step="0.01" value="0"><span class="v" id="f7r1v"></span></label>
+    <label>Rake V2 <input type="range" id="f7r2" min="-1.5" max="1.5" step="0.01" value="0"><span class="v" id="f7r2v"></span></label>
+    <label>Rake V3 <input type="range" id="f7r3" min="-1.5" max="1.5" step="0.01" value="0"><span class="v" id="f7r3v"></span></label>
+  </div>
+  <div class="group"><h4>Seam mid-bulges</h4>
+    <label>Seam V1 <input type="range" id="f7b1" min="-0.5" max="0.5" step="0.05" value="0"><span class="v" id="f7b1v"></span></label>
+    <label>Seam V2 <input type="range" id="f7b2" min="-0.5" max="0.5" step="0.05" value="0"><span class="v" id="f7b2v"></span></label>
+    <label>Seam V3 <input type="range" id="f7b3" min="-0.5" max="0.5" step="0.05" value="0"><span class="v" id="f7b3v"></span></label>
+    <button id="f7reset">Reset keel and seams</button>
+  </div>
+</div>
+<div class="bar"><button data-v="f7" data-p="iso">Perspective</button><button data-v="f7" data-p="plan">Plan</button><button data-v="f7" data-p="prof">Profile</button><button data-v="f7" data-p="body">Body plan</button><label><input type="checkbox" id="f7rul" checked> rulings</label><label><input type="checkbox" id="f7ext"> extend to apexes</label></div>
+<canvas id="f7" class="v3"></canvas>
+<p class="key" style="margin:8px 0 4px">Unrolled starboard plates, bow at left. <i style="background:#1e2a30"></i>chine <i style="background:#8a4fbf"></i>keel <i style="background:#c8512a"></i>seams <i style="background:#2b6cb0"></i>master frame</p>
+<canvas id="f7u" class="v2"></canvas>
+<pre class="info" id="f7info"></pre>
+<figcaption>Same construction as <a href="04-authored-keel-rake.html">page 04</a> with the general master frame. Try: the flared preset in the body plan; a positive rake at V1 to move the keel knuckle aft of the chine corner; a large master keel z to see the stem cone flatten.</figcaption>
+</figure>
+
+<!-- ================================================================ 9 -->
+<h2 id="s9">9. How many cones? Smoothness, creases and drag</h2>
+<p>Two questions belong here. Could a single smooth developable do the job, and if not, why not cut the chine into many short segments and chain many small cones?</p>
+<p><b>A single smooth developable cannot have curved sections and rocker.</b> Take a symmetric, crease-free developable from chine to mirrored chine and a keel point K. The ruling through K is its own mirror image, so it is either transverse (parallel to y) or lies in the centreplane, and by continuity the type is constant along the keel. Transverse everywhere is the cylinder z = z<sub>keel</sub>(x): flat sections. In the centreplane everywhere makes the keel itself one straight ruling. Either flat sections or a straight keel; the creases are what buy the combination.</p>
+<figure>
+<svg viewBox="0 0 760 230" width="100%" style="max-width:760px;background:#fff;border:1px solid var(--line);border-radius:6px">
+  <g transform="translate(20,20)">
+    <text x="0" y="0" font-weight="600">Body plan at a keel point K</text>
+    <line x1="170" y1="20" x2="170" y2="170" stroke="#cfd6d9" stroke-dasharray="4 4"/>
+    <text x="174" y="30" fill="#7c8a90">centreplane</text>
+    <path d="M60 60 Q 120 150 170 150 Q 220 150 280 60" fill="none" stroke="#1e2a30" stroke-width="2"/>
+    <circle cx="170" cy="150" r="4" fill="#8a4fbf"/><text x="176" y="166">K</text>
+    <line x1="70" y1="150" x2="270" y2="150" stroke="#3aa58a" stroke-width="2.5"/>
+    <text x="20" y="184" fill="#3aa58a">ruling ∥ y ⇒ transverse everywhere</text><text x="20" y="200" fill="#3aa58a">⇒ cylinder z = z_keel(x): flat sections</text>
+  </g>
+  <g transform="translate(400,20)">
+    <text x="0" y="0" font-weight="600">…or the ruling is in the centreplane</text>
+    <line x1="170" y1="20" x2="170" y2="170" stroke="#cfd6d9" stroke-dasharray="4 4"/>
+    <path d="M60 60 Q 120 150 170 150 Q 220 150 280 60" fill="none" stroke="#1e2a30" stroke-width="2"/>
+    <circle cx="170" cy="150" r="7" fill="none" stroke="#3aa58a" stroke-width="2.5"/>
+    <circle cx="170" cy="150" r="2" fill="#3aa58a"/>
+    <text x="182" y="146" fill="#3aa58a">ruling points along x</text>
+    <text x="20" y="184" fill="#3aa58a">⇒ the keel is itself one straight ruling</text><text x="20" y="200" fill="#3aa58a">(cone, cylinder or tangent developable)</text>
+  </g>
+</svg>
+<figcaption>The ruling through a keel point must equal its own mirror image. Only two directions do that.</figcaption>
+</figure>
+<p><b>Refining the chine gives a faceted approximation of a doubly curved bottom, and that is a legitimate design.</b> Cut a smooth chine into N segments and chain N cones. Each cone is exactly developable and buildable at any N. What does not happen is convergence to a smooth developable: <span class="tag">numerical</span> the sum of the keel folds over all seams stays in the 45–70° range from 4 to 64 segments, because the limit surface (homothetic curved sections, curved keel) is doubly curved by the argument above and its Gaussian curvature has to live somewhere. So the creases are permanent. They get smaller and more numerous, they never fair out of the plate, and every seam is a real knuckle line to weld and fair.</p>
+<p><b>Wave drag is not a reason to keep N small.</b> Michell's thin-ship integral is the standard test for that. It punishes jumps in the offsets (a transom step makes it diverge) but not kinks in the waterlines, because integrating by parts turns the slope transform into the offset transform. The N-cone bottom interpolates the smooth chine at the vertices, so its offsets differ from the smooth limit by order h² in the segment length h, and its kinks are a Riemann sum of the smooth hull's curvature. <span class="tag">numerical</span> Computing Michell's integral for the test chine (experiments/michell_refinement.py: round-bilge frame, drop 0.35, waterline 0.3 m above the datum, vertical topsides from chine to waterline, 801 stations × 90 waterlines) gives wave resistance that converges to the smooth-limit value about as h²:</p>
+<table>
+<tr><th>segments N</th><th>Fr 0.25</th><th>Fr 0.35</th><th>Fr 0.50</th><th>max offset error to limit</th></tr>
+<tr><td>4</td><td>1.11</td><td>0.94</td><td>0.85</td><td>0.64 m</td></tr>
+<tr><td>8</td><td>0.97</td><td>0.98</td><td>0.96</td><td>0.29 m</td></tr>
+<tr><td>16</td><td>0.99</td><td>0.99</td><td>0.99</td><td>0.13 m</td></tr>
+<tr><td>32</td><td>1.00</td><td>1.00</td><td>1.00</td><td>0.06 m</td></tr>
+</table>
+<p class="key" style="margin-top:-6px">Ratio of Michell wave resistance to the 256-segment chain (the smooth-limit proxy), demo speed at Fr 0.35 ≈ 3.5 m/s. Grid discretization error ≈ 1% in absolute values, common to all N.</p>
+<p>The 4-segment chain differs mostly because it is a different, smaller hull (offsets up to 0.64 m inside the smooth chine between vertices, wetted half-area 3.6 vs 4.1 m²), not because of its creases. From 8 segments up the wave resistance is within a few percent of the smooth hull and slightly below it. Thin-ship theory is qualitative for a hull this beamy, but the sign and the convergence are robust. The drag cost of more segments is viscous and practical: each transverse weld is a roughness step across the girth, and each seam is fairing work. The crease angles themselves are benign: a turbulent boundary layer follows a convex turn of a few degrees without separating, and at 8 segments the folds are already about 7°.</p>
+<p><b>So the choice of N is a build trade, not a hydrodynamic one.</b> Few cones: large plates, few welds, knuckles of 8–12° that read as deliberate chines. Many cones: a bottom that looks doubly curved, with knuckles of 1–3° that a builder can partly fair, at the price of a seam per segment. The demo hull's four segments are the given polyline; the refined chain is how you would go from that polyline toward a rounder hull while keeping every plate developable.</p>
+<figure>
+<div class="controls">
+<div class="group"><h4>Smooth test chine cut into cone panels</h4>
+<label>Segments <select id="f8n"><option>4</option><option selected>8</option><option>16</option><option>32</option><option>64</option></select></label>
+</div></div>
+<div class="bar"><button data-v="f8" data-p="iso">Perspective</button><button data-v="f8" data-p="plan">Plan</button><button data-v="f8" data-p="prof">Profile</button><button data-v="f8" data-p="body">Body plan</button></div>
+<div class="row"><canvas id="f8" class="v3"></canvas><canvas id="f8b" class="v3"></canvas></div>
+<pre class="info" id="f8info"></pre>
+<figcaption>Left: the cone chain under the refined chine, master frame at the middle vertex. Right, top: total keel fold against segment count (per-seam folds shrink, the total does not). Right, bottom: Michell wave resistance relative to the smooth limit, one line per Froude number, from the experiment above.</figcaption>
+</figure>
+
+<!-- ================================================================ 10 -->
+<h2 id="s10">10. What the designer controls</h2>
+<table>
+<tr><th>Element</th><th>Authored</th><th>Derived</th></tr>
+<tr><td>Cone apexes</td><td>nothing: pinned on the centreplane by the chine</td><td>P<sub>j</sub> from each chine segment; cylinder when the half-breadths are equal</td></tr>
+<tr><td>Sections</td><td>one master frame: tangent angles and handles at keel and chine, station</td><td>all other sections, homothetic about P<sub>j</sub></td></tr>
+<tr><td>Keel</td><td>height at the master vertex, rake of each interior vertex</td><td>every keel line, every other vertex height, keel drop at each vertex</td></tr>
+<tr><td>Seams</td><td>mid-bulge (shape between the ends)</td><td>the fold: chine corner + frame tangent at the top, keel-slope change at the bottom (<span class="tag">numerical</span> 6–12° on the demo)</td></tr>
+<tr><td>Number of cones</td><td>the chine polyline itself</td><td>knuckle size ≈ total/N; wave drag converges to the smooth hull's; weld count grows with N</td></tr>
+<tr><td>Plates</td><td>—</td><td>exact unroll, cone polar or cylinder</td></tr>
+</table>
+<p>Not on offer: apexes off the centreplane (the keel becomes a curve with a port/starboard fold growing toward the seams; tried and rejected), smoothing a seam by bending rulings away from the apex fan (impossible, section 6), and sub-dividing chine segments to gain keel control (section 6).</p>
+</main>
+
+<script>
+// ---------------------------------------------------------------- shared helpers
+const V=[[0,0,0.9],[2.5,0.85,0.35],[5,1.3,0.1],[7.5,1.3,0.05],[10,0.9,0.15]];
+const NP=13,NU=2*NP-1,KI=NP-1;
+const C={ink:'#1e2a30',muted:'#7c8a90',light:'#b9c3c8',ruling:'#3aa58a',seam:'#c8512a',master:'#2b6cb0',keel:'#8a4fbf',fwd:'#b8860b',warn:'#b3261e'};
+const g=id=>document.getElementById(id);
+const val=id=>+g(id).value;
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const lerp=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const norm=a=>Math.hypot(a[0],a[1],a[2]);
+const unit=a=>mul(a,1/norm(a));
+const mirror=p=>[p[0],-p[1],p[2]];
+const deg=r=>r*180/Math.PI;
+const fmt=(x,n=2)=>(x===undefined||x===null||!isFinite(x))?'n/a':x.toFixed(n);
+function clipPoly(pts){const out=[];for(let i=0;i<pts.length;i++){const p=pts[i];if(p[1]>=-1e-9)out.push(p);else{if(i>0){const q=pts[i-1];out.push(lerp(q,p,q[1]/(q[1]-p[1])));}break;}}return out;}
+function clipSeg(a,b){const ya=a[1],yb=b[1];if(ya>=-1e-9&&yb>=-1e-9)return[a,b];if(ya<0&&yb<0)return null;const c=lerp(a,b,ya/(ya-yb));return ya>=0?[a,c]:[c,b];}
+
+// ---------------------------------------------------------------- orbit viewer
+function prep(c){const x=c.getContext('2d');const dpr=window.devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight;c.width=W*dpr;c.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,W,H);return[x,W,H];}
+const VIEWS={iso:[-0.7,0.95],plan:[0,Math.PI/2],prof:[0,0],body:[-Math.PI/2,0],below:[-0.7,-0.95]};
+class View3D{
+ constructor(id,render){this.cv=g(id);this.render=render;[this.yaw,this.pitch]=VIEWS.iso;this.fit=true;this.items=[];this.c=[0,0,0];
+  let drag=false,pan=false,lx,ly;const dn=e=>{drag=true;pan=!!e.shiftKey;const t=e.touches?e.touches[0]:e;lx=t.clientX;ly=t.clientY;};
+  const mv=e=>{if(!drag)return;const t=e.touches?e.touches[0]:e;const dx=t.clientX-lx,dy=t.clientY-ly;if(pan){this.cx+=dx;this.cy+=dy;}else{this.yaw+=dx*0.01;this.pitch+=dy*0.01;}lx=t.clientX;ly=t.clientY;this.draw();if(e.cancelable)e.preventDefault();};
+  this.cv.addEventListener('mousedown',dn);window.addEventListener('mousemove',mv);window.addEventListener('mouseup',()=>drag=false);
+  this.cv.addEventListener('wheel',e=>{const r=this.cv.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;const k=Math.exp(-e.deltaY*0.0015);this.scale*=k;this.cx=mx-(mx-this.cx)*k;this.cy=my-(my-this.cy)*k;this.draw();e.preventDefault();},{passive:false});
+  this.cv.addEventListener('touchstart',dn,{passive:false});this.cv.addEventListener('touchmove',mv,{passive:false});window.addEventListener('touchend',()=>drag=false);
+  document.querySelectorAll('button[data-v="'+id+'"]').forEach(b=>b.addEventListener('click',()=>{[this.yaw,this.pitch]=VIEWS[b.dataset.p];this.fit=true;this.draw();}));
+  window.addEventListener('resize',()=>{this.fit=true;this.draw();});}
+ proj(q){const p=sub(q,this.c);const ca=Math.cos(this.yaw),sa=Math.sin(this.yaw),cb=Math.cos(this.pitch),sb=Math.sin(this.pitch);const x1=p[0]*ca-p[1]*sa,y1=p[0]*sa+p[1]*ca;return[x1,-(y1*sb+p[2]*cb)];}
+ // items: {t:'poly',pts,col,w,dash,nofit} {t:'pt',p,col,label,r}
+ draw(){const items=this.items=this.render();const[ctx,W,H]=prep(this.cv);
+  if(this.fit){const p3=[];items.forEach(it=>{if(it.nofit)return;if(it.t==='poly'||it.t==='quad')it.pts.forEach(p=>p3.push(p));else p3.push(it.p);});
+   const lo=[0,1,2].map(i=>Math.min(...p3.map(p=>p[i]))),hi=[0,1,2].map(i=>Math.max(...p3.map(p=>p[i])));this.c=[0,1,2].map(i=>(lo[i]+hi[i])/2);const ps=p3.map(p=>this.proj(p));
+   const mnx=Math.min(...ps.map(p=>p[0])),mxx=Math.max(...ps.map(p=>p[0])),mny=Math.min(...ps.map(p=>p[1])),mxy=Math.max(...ps.map(p=>p[1]));
+   this.scale=Math.min((W-60)/Math.max(mxx-mnx,0.5),(H-50)/Math.max(mxy-mny,0.5));this.cx=W/2-this.scale*(mnx+mxx)/2;this.cy=H/2-this.scale*(mny+mxy)/2;this.fit=false;}
+  const Sc=p=>{const q=this.proj(p);return[this.cx+this.scale*q[0],this.cy+this.scale*q[1]];};
+  // shaded quads first, painter's order (farthest first). into-screen direction and a light from the upper left, toward the viewer
+  const cy_=Math.cos(this.yaw),sy_=Math.sin(this.yaw),cp_=Math.cos(this.pitch),sp_=Math.sin(this.pitch);
+  const vin=[sy_*cp_,cy_*cp_,-sp_],e1=[cy_,-sy_,0],e2=[-sy_*sp_,-cy_*sp_,-cp_];const Lt=unit(add(add(mul(vin,-1),mul(e1,-0.45)),mul(e2,-0.7)));
+  const quads=items.filter(it=>it.t==='quad').map(it=>{const n=cross(sub(it.pts[2],it.pts[0]),sub(it.pts[3],it.pts[1]));const nn=norm(n);const sh=nn>0?0.22+0.78*Math.abs(dot(n,Lt))/nn:0.5;
+   const d=it.pts.reduce((a,p)=>a+dot(p,vin),0)/4;return{it,d,sh};}).sort((a,b)=>b.d-a.d);
+  for(const q of quads){const c=q.it.col||[196,204,212];ctx.fillStyle='rgb('+Math.round(c[0]*q.sh)+','+Math.round(c[1]*q.sh)+','+Math.round(c[2]*q.sh)+')';ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=0.5;
+   ctx.beginPath();q.it.pts.forEach((p,i)=>{const s=Sc(p);i?ctx.lineTo(s[0],s[1]):ctx.moveTo(s[0],s[1]);});ctx.closePath();ctx.fill();ctx.stroke();}
+  ctx.font='12px system-ui, sans-serif';
+  for(const it of items){if(it.t==='quad')continue;if(it.t==='poly'){if(it.pts.length<2)continue;ctx.beginPath();ctx.strokeStyle=it.col;ctx.lineWidth=it.w||1;ctx.setLineDash(it.dash||[]);it.pts.forEach((p,i)=>{const q=Sc(p);i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]);});ctx.stroke();ctx.setLineDash([]);}
+   else{const q=Sc(it.p);ctx.beginPath();ctx.arc(q[0],q[1],it.r||3.5,0,7);ctx.fillStyle=it.col;ctx.fill();if(it.label){ctx.fillStyle=it.lcol||C.muted;ctx.fillText(it.label,q[0]+6,q[1]+(it.dy||-6));}}}}
+}
+function wireSliders(ids,fn){ids.forEach(id=>{const e=g(id);if(!e)return;e.addEventListener('input',fn);e.addEventListener('change',fn);});}
+function showVals(ids,n=2){ids.forEach(id=>{const v=g(id+'v');if(v)v.textContent=fmt(val(id),n);});}
+function both(items,pts,col,w,dash){items.push({t:'poly',pts,col,w,dash});items.push({t:'poly',pts:pts.map(mirror),col,w,dash});}
+
+// ---------------------------------------------------------------- cone chain (page 04 logic, generic in V)
+function coneChain(Vc,m,fr,kz,rake,bulge){ // fr = master frame {thK,aK,thC,aC}: tangent angles (deg, from the across axis) and handle lengths (fraction of the chord) at keel and chine
+ const N=Vc.length-1,segs=[],warns=[];
+ for(let j=0;j<N;j++){const A=Vc[j],B=Vc[j+1],d=sub(B,A),dy=d[1];if(Math.abs(dy)<1e-6)segs.push({cyl:true,dir:d});else segs.push({cyl:false,P:add(A,mul(d,-A[1]/dy))});}
+ const rdir=(j,Q)=>segs[j].cyl?segs[j].dir:sub(Q,segs[j].P);
+ const shift=[];for(let v=0;v<=N;v++)shift[v]=(v>0&&v<N&&rake)?(rake[v]||0):0;
+ for(let v=1;v<N;v++)if(Vc[v][0]+shift[v]<Vc[v-1][0]||Vc[v][0]+shift[v]>Vc[v+1][0])warns.push('keel vertex '+v+' raked past a neighbouring chine station');
+ const xv=v=>Vc[v][0]+shift[v];
+ const lineFrom=(j,x0,z0)=>{const q=segs[j];const sl=q.cyl?q.dir[2]/q.dir[0]:(z0-q.P[2])/(x0-q.P[0]);return{s:sl,z:x=>z0+sl*(x-x0)};};
+ const lines=[],kv=[];kv[m]=[xv(m),0,kz];
+ for(let j=m;j<N;j++){lines[j]=lineFrom(j,kv[j][0],kv[j][2]);kv[j+1]=[xv(j+1),0,lines[j].z(xv(j+1))];}
+ for(let j=m-1;j>=0;j--){lines[j]=lineFrom(j,kv[j+1][0],kv[j+1][2]);kv[j]=[xv(j),0,lines[j].z(xv(j))];}
+ for(let j=0;j<N;j++)if(!isFinite(lines[j].s))warns.push('keel line '+j+' is vertical (vertex directly above/below its apex)');
+ const seamX=(v,u)=>Vc[v][0]+shift[v]*(1-u)+((bulge&&bulge[v])||0)*4*u*(1-u);
+ const cut=(j,Q,v,u)=>{const d=rdir(j,Q);return add(Q,mul(d,(seamX(v,u)-Q[0])/d[0]));};
+ const uOf=k=>Math.abs(k-KI)/KI;
+ // master frame: cubic Bezier half-section in the inclined plane through chine vertex and keel vertex
+ const Km=kv[m],yc=Vc[m][1],w=[Vc[m][0]-Km[0],0,Vc[m][2]-Km[2]],dl=norm(w),wh=mul(w,1/dl);
+ const Lc=Math.hypot(yc,dl),tk=fr.thK*Math.PI/180,tc=fr.thC*Math.PI/180;
+ const K1=[fr.aK*Lc*Math.cos(tk),fr.aK*Lc*Math.sin(tk)],C1=[yc-fr.aC*Lc*Math.cos(tc),dl-fr.aC*Lc*Math.sin(tc)];
+ const half=u=>{const b=3*u*(1-u)**2,c=3*u*u*(1-u),e=u**3;const eta=b*K1[0]+c*C1[0]+e*yc,zeta=b*K1[1]+c*C1[1]+e*dl;return add(add(Km,[0,eta,0]),mul(wh,zeta));};
+ const halfT=u=>{const h=1e-5,lo=Math.max(u-h,0),hi=Math.min(u+h,1);return mul(sub(half(hi),half(lo)),1/(hi-lo));};
+ const sec=[];const mf=[];for(let i=NP-1;i>=0;i--)mf.push(half(i/KI));for(let i=1;i<NP;i++)mf.push(mirror(half(i/KI)));sec[m]=mf;
+ for(let j=m;j<N;j++)sec[j+1]=sec[j].map((Q,k)=>j+1<N?cut(j,Q,j+1,uOf(k)):cut(j,Q,j+1,1));
+ for(let j=m-1;j>=0;j--)sec[j]=sec[j+1].map((Q,k)=>j>0?cut(j,Q,j,uOf(k)):cut(j,Q,j,1));
+ // seam folds (starboard side, k from chine to keel), angle between tangent planes of cone v-1 and cone v
+ const seamFold=[];
+ for(let v=1;v<N;v++){const R=sec[v],out=[];for(let k=0;k<=KI;k++){const T=sub(R[Math.min(k+1,NU-1)],R[Math.max(k-1,0)]);const n1=cross(rdir(v-1,R[k]),T),n2=cross(rdir(v,R[k]),T);const c=Math.abs(dot(n1,n2))/(norm(n1)*norm(n2));out.push(deg(Math.acos(Math.min(1,c))));}seamFold[v]=out;}
+ return{N,V:Vc,m,fr,segs,rdir,shift,lines,kv,sec,seamFold,warns,half,halfT};
+}
+function chainItems(ch,opt){opt=opt||{};const it=[];const{N,V:Vc,m,segs,sec,kv,rdir}=ch;const j0=opt.from||0;
+ const ext=opt.ext,okP=q=>!q.cyl&&q.P[0]>-8&&q.P[0]<18;
+ if(opt.rul!==false)for(let j=j0;j<N;j++)for(let k=0;k<NU;k+=2){const c=clipSeg(sec[j][k],sec[j+1][k]);if(!c)continue;both(it,c,opt.rulCol||C.ruling,0.8);
+  if(ext&&okP(segs[j])&&k%4===0){const far=segs[j].P[0]<Vc[j][0]?c[0]:c[1];it.push({t:'poly',pts:[far,segs[j].P],col:C.ruling,w:0.5,dash:[2,4]});}}
+ for(let j=j0;j<N;j++)for(let i=1;i<3;i++)both(it,clipPoly(sec[j].map((Q,k)=>lerp(Q,sec[j+1][k],i/3))),C.light,0.7);
+ for(let j=j0;j<=N;j++)both(it,clipPoly(sec[j]),j===m?C.master:(j>j0&&j<N?C.seam:C.muted),j===m?2.5:(j>j0&&j<N?1.8:1.2));
+ it.push({t:'poly',pts:kv.slice(j0),col:C.keel,w:2});kv.slice(j0).forEach(p=>it.push({t:'pt',p,col:C.keel,r:3}));
+ if(ext)for(let j=j0;j<N;j++){const q=segs[j];if(!okP(q))continue;const near=q.P[0]<Vc[j][0]?kv[j]:kv[j+1];it.push({t:'poly',pts:[near,q.P],col:C.keel,w:0.8,dash:[4,4]});}
+ both(it,Vc.slice(j0),C.ink,2.2);
+ if(opt.apex!==false)for(let j=j0;j<N;j++){const q=segs[j];if(!okP(q))continue;const near=q.P[0]<Vc[j][0]?Vc[j]:Vc[j+1];
+  if(norm(sub(near,q.P))>1e-6){it.push({t:'poly',pts:[near,q.P],col:C.ink,w:0.8,dash:[4,4]});it.push({t:'poly',pts:[mirror(near),q.P],col:C.ink,w:0.8,dash:[4,4]});}
+  it.push({t:'pt',p:q.P,col:C.ink,label:'P'+j});}
+ if(opt.labels!==false){for(let v=Math.max(1,j0+1);v<N;v++)it.push({t:'pt',p:sec[v][0],col:v===m?C.master:C.seam,r:0.1,label:v===m?'master frame':'seam V'+v,lcol:v===m?C.master:C.seam,dy:14});if(m===j0||m===N)it.push({t:'pt',p:sec[m][0],col:C.master,r:0.1,label:'master frame',lcol:C.master,dy:14});}
+ return it;}
+
+
+// ---------------------------------------------------------------- master frame controls (shared by several figures)
+const FRAMES={v:{thK:0,aK:0,thC:90,aC:0,name:'straight V'},round:{thK:0,aK:0.32,thC:90,aC:0.09,name:'round bilge'},flare:{thK:35,aK:0.35,thC:0,aC:0.35,name:'flared (hollow to the chine)'},s:{thK:0,aK:0.35,thC:-10,aC:0.3,name:'S: convex bilge, reverse curve at the chine'}};
+function frameControls(containerId,prefix,onChange,preset){const c=g(containerId);const p=FRAMES[preset||'round'];
+ c.innerHTML='<h4>Master frame <span>(cubic Bézier, keel → chine)</span></h4>'+
+  '<label><span style="white-space:nowrap">Keel tangent angle</span> <input type="range" id="'+prefix+'thK" min="0" max="60" step="1" value="'+p.thK+'"><span class="v" id="'+prefix+'thKv"></span></label>'+
+  '<label><span style="white-space:nowrap">Keel handle</span> <input type="range" id="'+prefix+'aK" min="0" max="0.7" step="0.01" value="'+p.aK+'"><span class="v" id="'+prefix+'aKv"></span></label>'+
+  '<label><span style="white-space:nowrap">Chine tangent angle</span> <input type="range" id="'+prefix+'thC" min="-30" max="90" step="1" value="'+p.thC+'"><span class="v" id="'+prefix+'thCv"></span></label>'+
+  '<label><span style="white-space:nowrap">Chine handle</span> <input type="range" id="'+prefix+'aC" min="0" max="0.7" step="0.01" value="'+p.aC+'"><span class="v" id="'+prefix+'aCv"></span></label>'+
+  '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">'+Object.keys(FRAMES).map(k=>'<button id="'+prefix+'pre_'+k+'">'+FRAMES[k].name.split(' ')[0].replace(':','')+'</button>').join('')+'</div>';
+ const ids=['thK','aK','thC','aC'];
+ const get=()=>{g(prefix+'thKv').textContent=val(prefix+'thK')+'°';g(prefix+'thCv').textContent=val(prefix+'thC')+'°';g(prefix+'aKv').textContent=fmt(val(prefix+'aK'));g(prefix+'aCv').textContent=fmt(val(prefix+'aC'));
+  return{thK:val(prefix+'thK'),aK:val(prefix+'aK'),thC:val(prefix+'thC'),aC:val(prefix+'aC')};};
+ wireSliders(ids.map(i=>prefix+i),onChange);
+ for(const k of Object.keys(FRAMES)){const b=g(prefix+'pre_'+k);if(b)b.addEventListener('click',()=>{ids.forEach(i=>g(prefix+i).value=FRAMES[k][i]);onChange();});}
+ get.set=fr=>{ids.forEach(i=>g(prefix+i).value=fr[i]);};
+ return get;}
+
+// ---------------------------------------------------------------- one frame per cone, seams derived as cone ∩ cone
+function bez2(fr,yc,dl){const Lc=Math.hypot(yc,dl),tk=fr.thK*Math.PI/180,tc=fr.thC*Math.PI/180;
+ const K1=[fr.aK*Lc*Math.cos(tk),fr.aK*Lc*Math.sin(tk)],C1=[yc-fr.aC*Lc*Math.cos(tc),dl-fr.aC*Lc*Math.sin(tc)],Cc=[yc,dl];
+ return{p:u=>{const b=3*u*(1-u)**2,c=3*u*u*(1-u),e=u**3;return[b*K1[0]+c*C1[0]+e*Cc[0],b*K1[1]+c*C1[1]+e*Cc[1]];},
+  d:u=>{const db=3*(1-u)**2-6*u*(1-u),dc=6*u*(1-u)-3*u*u,de=3*u*u;return[db*K1[0]+dc*C1[0]+de*Cc[0],db*K1[1]+dc*C1[1]+de*Cc[1]];}};}
+function multiChain(Vc,m,frs,kz,rake){ // frs[j]: frame parameters of cone j, drawn at V[j+1] / K[j+1]. Keel polyline as in coneChain.
+ const base=coneChain(Vc,m,frs[0],kz,rake,null);const{N,segs,rdir,kv}=base;const cones=[];
+ for(let j=0;j<N;j++){const v=j+1,Kv=kv[v],Cv=Vc[v],w=[Cv[0]-Kv[0],0,Cv[2]-Kv[2]],dl=norm(w),wh=mul(w,1/dl),bz=bez2(frs[j],Cv[1],dl);
+  const frame=u=>{const q=bz.p(u);return add(add(Kv,[0,q[0],0]),mul(wh,q[1]));},frameT=u=>{const q=bz.d(u);return add([0,q[0],0],mul(wh,q[1]));};
+  const toX=(Q,X)=>{const q=segs[j];if(!q.cyl&&(X-q.P[0])*(Q[0]-q.P[0])<=0)return null;const d=rdir(j,Q);return add(Q,mul(d,(X-Q[0])/d[0]));};
+  cones.push({j,frame,frameT,toX,secAt:(X,u)=>toX(frame(u),X),Kv,Cv});}
+ const ch={N,V:Vc,m,segs,rdir,kv,lines:base.lines,warns:base.warns.slice(),cones,seams:[],bounds:[]};
+ const chineY=x=>{for(let j=0;j<N;j++)if(x<=Vc[j+1][0]+1e-9)return lerp(Vc[j],Vc[j+1],(x-Vc[j][0])/(Vc[j+1][0]-Vc[j][0]))[1];return Vc[N][1];};
+ // signed distance from a point S to cone A's section at station S.x, in the (y,z) plane: >0 inboard/above the section, <0 outboard/below;
+ // also the frame parameter of the nearest point. Defined everywhere (beyond the chine the sign comes from the last segment), unlike a z-at-y lookup.
+ const NS=40;const sd=(A,S)=>{const X=S[0];const pts=[];for(let i=0;i<=NS;i++){const q=A.secAt(X,i/NS);if(!q)return null;pts.push(q);}
+  let best=1e9,bu=0,bsgn=1;for(let i=0;i<NS;i++){const p=pts[i],q=pts[i+1],dy=q[1]-p[1],dz=q[2]-p[2],L2=dy*dy+dz*dz;let t=L2>0?((S[1]-p[1])*dy+(S[2]-p[2])*dz)/L2:0;t=Math.max(0,Math.min(1,t));
+   const ny=p[1]+t*dy,nz=p[2]+t*dz,d=Math.hypot(S[1]-ny,S[2]-nz);if(d<best){best=d;bu=(i+t)/NS;bsgn=(dy*(S[2]-p[2])-dz*(S[1]-p[1]))>=0?1:-1;}}
+  // refine on the exact section curve near the nearest polyline point (the polyline alone leaves ~1 mm error at a tight bilge)
+  let lo=Math.max(0,bu-1/NS),hi=Math.min(1,bu+1/NS);const dist=u=>{const q=A.secAt(X,u);return q?Math.hypot(S[1]-q[1],S[2]-q[2]):1e9;};
+  for(let k=0;k<30;k++){const m1=lo+(hi-lo)*0.382,m2=lo+(hi-lo)*0.618;if(dist(m1)<dist(m2))hi=m2;else lo=m1;}
+  bu=(lo+hi)/2;const qn=A.secAt(X,bu);if(qn){const T=A.frameT(bu);best=Math.hypot(S[1]-qn[1],S[2]-qn[2]);bsgn=(T[1]*(S[2]-qn[2])-T[2]*(S[1]-qn[1]))>=0?1:-1;}
+  return{d:bsgn*best,u:bu};};
+ // pierce: where does cone B's ruling through B.frame(u) cross cone A? search X in [xlo,xhi], root nearest prev
+ const pierce=(B,A,u,xlo,xhi,prev)=>{const f=X=>{const R=B.secAt(X,u);if(!R)return NaN;const r=sd(A,R);return r?r.d:NaN;};
+  const n=80;let best=null;let xp=xlo,fp=f(xlo);for(let i=1;i<=n;i++){const X=xlo+(xhi-xlo)*i/n,fx=f(X);if(!isNaN(fp)&&!isNaN(fx)&&fp*fx<=0){let a=xp,b=X,fa=fp;for(let k=0;k<40;k++){const c=(a+b)/2,fc=f(c);if(fa*fc<=0)b=c;else{a=c;fa=fc;}}const r=(a+b)/2;if(best===null||Math.abs(r-prev)<Math.abs(best-prev))best=r;}xp=X;fp=fx;}return best;};
+ const foldAt=(A,B,S,uB)=>{const r=sd(A,S);if(!r)return NaN;const n1=cross(rdir(A.j,S),A.frameT(r.u)),n2=cross(rdir(B.j,S),B.frameT(uB));return deg(Math.acos(Math.min(1,Math.abs(dot(n1,n2))/(norm(n1)*norm(n2)))));};
+ for(let v=1;v<N;v++){const A=cones[v-1],B=cones[v],xv=Vc[v][0],h=Math.min(xv-Vc[v-1][0],Vc[v+1][0]-xv);const pts=[],fold=[],miss=[];let prev=xv,outside=false,far=false,exc=0;
+  for(let i=KI;i>=0;i--){const u=i/KI;let X;if(i===KI)X=xv;else{X=pierce(B,A,u,Vc[v-1][0]-0.3,Vc[v+1][0]+0.3,prev);}
+   if(X===null){miss.push(u);pts.push(null);fold.push(NaN);continue;}prev=X;const Sp=B.secAt(X,u);pts.push(Sp);fold.push(i===KI?NaN:foldAt(A,B,Sp,u));
+   exc=Math.max(exc,Math.abs(X-xv));if(Sp[1]>chineY(X)+1e-6)outside=true;if(Math.abs(X-xv)>h)far=true;}
+  // section-shape difference at the shared station x_v (both cones pass through V_v and K_v there): max distance between B's section and A's; gearing = excursion / that
+  let dz=0;for(let i=1;i<KI;i++){const q=B.secAt(xv,i/KI);if(q){const r=sd(A,q);if(r)dz=Math.max(dz,Math.abs(r.d));}}
+  if(miss.length)ch.warns.push('seam V'+v+': no intersection of the two cones along '+miss.length+' of '+NP+' rulings');
+  if(outside)ch.warns.push('seam V'+v+' runs outside the chine (plate would poke through the topsides)');
+  if(far)ch.warns.push('seam V'+v+' wanders past a neighbouring chine station');
+  ch.seams[v]={pts,fold:fold.filter(a=>!isNaN(a)),exc,dz,miss:miss.length};}
+ // plate boundaries along each cone's own rulings: forward (seam j on cone j's rulings, or the apex for the stem cone) and aft (seam j+1 pierced from cone j's rulings, or the stern station)
+ for(let j=0;j<N;j++){const B=cones[j];const fwd=[],aft=[];let pf=Vc[j][0],pa=Vc[j+1][0];
+  for(let i=0;i<=KI;i++){const u=i/KI;
+   if(j===0)fwd.push(Vc[0].slice());else{const S=ch.seams[j].pts[KI-i];fwd.push(S);}
+   if(j===N-1)aft.push(B.secAt(Vc[N][0],u));else{const X=i===KI?Vc[j+1][0]:pierce(B,cones[j+1],u,Vc[j][0]-0.3,Vc[j+2][0]+0.3,pa);if(X===null)aft.push(null);else{pa=X;aft.push(B.secAt(X,u));}}}
+  ch.bounds[j]={fwd,aft};}
+ return ch;}
+
+// ---------------------------------------------------------------- fine mesh of a multi-frame chain, shaded quads, lines drawing
+function meshMulti(ch,nu,ns){ // per cone: rows over fine u (keel u=0 -> chine u=1), each a polyline of ns+1 points along the ruling from the forward to the aft boundary
+ const out=[];for(let j=0;j<ch.N;j++){const b=ch.bounds[j],cone=ch.cones[j],rows=[];
+  const bx=(arr,u)=>{const i=u*KI,i0=Math.min(KI-1,Math.floor(i)),t=i-i0,a=arr[i0],c=arr[i0+1];return(a&&c)?a[0]+(c[0]-a[0])*t:null;};
+  for(let i=0;i<=nu;i++){const u=i/nu,xa=bx(b.aft,u);let F=null;const A=xa===null?null:cone.secAt(xa,u);
+   if(j===0)F=ch.V[0].slice();else{const xf=bx(b.fwd,u);if(xf!==null)F=cone.secAt(xf,u);}
+   if(!F||!A){rows.push(null);continue;}const pts=[];for(let k=0;k<=ns;k++)pts.push(lerp(F,A,k/ns));rows.push(pts);}
+  out.push(rows);}return out;}
+function meshQuads(mesh,tint){const it=[];mesh.forEach((rows,j)=>{const col=tint?tint(j):[196,204,212];
+ for(let i=0;i+1<rows.length;i++){const r0=rows[i],r1=rows[i+1];if(!r0||!r1)continue;for(let k=0;k+1<r0.length;k++){const q=[r0[k],r0[k+1],r1[k+1],r1[k]];it.push({t:'quad',pts:q,col});it.push({t:'quad',pts:q.map(mirror),col});}}});return it;}
+function contourMesh(mesh,axis,c){ // segments where the plane coord[axis]=c cuts the starboard mesh
+ const segs=[];for(const rows of mesh)for(let i=0;i+1<rows.length;i++){const r0=rows[i],r1=rows[i+1];if(!r0||!r1)continue;
+  for(let k=0;k+1<r0.length;k++){const q=[r0[k],r0[k+1],r1[k+1],r1[k]],xs=[];
+   for(let e=0;e<4;e++){const a=q[e],b=q[(e+1)%4],fa=a[axis]-c,fb=b[axis]-c;if(fa===0&&fb===0)continue;if(fa*fb<=0&&fa!==fb){xs.push(lerp(a,b,fa/(fa-fb)));}}
+   if(xs.length>=2)segs.push([xs[0],xs[1]]);if(xs.length===4)segs.push([xs[2],xs[3]]);}}return segs;}
+function drawLines(cvId,ch,mesh,opts){ // traditional lines of the bottom: profile (buttocks) and half-breadth plan (waterlines) stacked at one scale, body plan (sections) below at a larger scale
+ const[ctx,W,H]=prep(g(cvId));const Vc=ch.V,L=Vc[ch.N][0];const zs=[];mesh.forEach(rows=>rows.forEach(r=>r&&r.forEach(p=>zs.push(p[2]))));const zmin=Math.min(...zs),zmax=Math.max(...Vc.map(p=>p[2]));
+ const ymax=Math.max(...Vc.map(p=>p[1]))*1.05,hz=zmax-zmin,pad=16,gap=22;
+ const sc=Math.min((W-2*pad-40)/L,(H*0.55-gap)/(hz+ymax));const oxL=pad+20,oyProf=pad+sc*hz,oyPlan=oyProf+gap+sc*ymax;
+ const Pp=p=>[oxL+sc*p[0],oyProf-sc*(p[2]-zmin)];const Pl=p=>[oxL+sc*p[0],oyPlan-sc*p[1]];
+ const top=oyPlan+gap+6,scB=Math.min((W-2*pad)/(2*ymax*1.05),(H-top-pad-14)/hz);const oxB=W/2,oyB=top+14+scB*hz;const Pb=(p,side)=>[oxB+side*scB*p[1],oyB-scB*(p[2]-zmin)];
+ const line=(pts,col,w,dash)=>{if(pts.length<2)return;ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;ctx.setLineDash(dash||[]);pts.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.stroke();ctx.setLineDash([]);};
+ const segs=(ss,T,col,w)=>{ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;for(const s of ss){const a=T(s[0]),b=T(s[1]);ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();};
+ ctx.font='11px system-ui, sans-serif';
+ for(const x of[0,2.5,5,7.5,10]){line([Pp([x,0,zmin]),Pp([x,0,zmax])],'#e6e9eb',1);line([Pl([x,0,0]),Pl([x,ymax,0])],'#e6e9eb',1);}
+ line([Pp([0,0,zmin]),Pp([L,0,zmin])],C.light,1);line([Pl([0,0,0]),Pl([L,0,0])],C.light,1);line([Pb([0,-ymax,zmin],1),Pb([0,ymax,zmin],1)],C.light,1);line([Pb([0,0,zmin],1),Pb([0,0,zmax],1)],C.light,1,[3,3]);
+ ctx.fillStyle=C.muted;ctx.fillText('profile: buttocks at y = '+opts.butt.join(', ')+' m',oxL+4,pad-4);ctx.fillText('half-breadth plan: waterlines every '+opts.wlStep+' m',oxL+4,oyProf+gap-6);ctx.fillText('body plan at '+(scB/sc).toFixed(1)+'× the scale: stations every '+opts.stStep+' m, bow half at right, stern half at left',pad,top+8);
+ for(const y of opts.butt)segs(contourMesh(mesh,1,y),Pp,'#6b8f9c',0.9);
+ for(let z=zmin+opts.wlStep/2;z<zmax;z+=opts.wlStep)segs(contourMesh(mesh,2,z),Pl,'#6b8f9c',0.9);
+ for(let x=opts.stStep;x<L-1e-9;x+=opts.stStep){const side=x<=L/2?1:-1;segs(contourMesh(mesh,0,x),p=>Pb(p,side),'#4b6f7c',0.9);}
+ line(Vc.map(Pp),C.ink,1.8);line(Vc.map(Pl),C.ink,1.8);line(ch.kv.map(Pp),C.keel,1.8);
+ for(let v=1;v<ch.N;v++){const p=ch.seams[v].pts.filter(q=>q);line(p.map(Pp),C.seam,1.6);line(p.map(Pl),C.seam,1.6);}
+ ch.cones.forEach((cone,j)=>{const fr=[];for(let i=0;i<=KI;i++)fr.push(cone.frame(i/KI));const side=Vc[j+1][0]<=L/2?1:-1;line(fr.map(p=>Pb(p,side)),C.master,j===opts.cur?2.2:1.1,j===opts.cur?[]:[4,3]);});
+ for(const p of Vc){const q=Pb(p,p[0]<=L/2?1:-1);ctx.fillStyle=C.ink;ctx.beginPath();ctx.arc(q[0],q[1],2.5,0,7);ctx.fill();}
+ ctx.fillStyle=C.muted;for(const x of[0,5,10]){const q=Pl([x,0,0]);ctx.fillText('x='+x,q[0]-8,q[1]+12);}
+ for(const y of opts.butt){const q=Pl([L,y,0]);ctx.fillText(y.toFixed(1),q[0]+4,q[1]+4);}}
+// ---------------------------------------------------------------- fig 1: flat loft
+const f1=new View3D('f1',()=>{const it=[];const chineAt=x=>{const j=Math.min(3,Math.floor(x/2.5));return lerp(V[j],V[j+1],(x-V[j][0])/2.5);};
+ for(let i=0;i<=24;i++){const q=chineAt(10*i/24);if(q[1]>1e-6)it.push({t:'poly',pts:[q,mirror(q)],col:C.ruling,w:0.9});}
+ both(it,V,C.ink,2.2);V.forEach((p,i)=>it.push({t:'pt',p,col:C.ink,label:'V'+i}));
+ it.push({t:'poly',pts:[[0,0,0.9],[10,0,0.15]],col:C.keel,w:1.4,dash:[6,4]});return it;});
+f1.draw();
+
+// ---------------------------------------------------------------- fig 2: apex (plan view)
+function drawF2(){showVals(['f2ya','f2yb']);const yA=val('f2ya'),yB=val('f2yb'),xA=2.5,xB=5;const[ctx,W,H]=prep(g('f2'));
+ const dy=yB-yA,cyl=Math.abs(dy)<0.02;let P=null,t=null;if(!cyl){t=-yA/dy;P=[xA+t*(xB-xA),0];}
+ const xmin=Math.min(-1,P?P[0]-0.5:-1),xmax=Math.max(8,P?P[0]+0.5:8);const sc=Math.min((W-40)/(xmax-xmin),(H-30)/3.4);const ox=20-sc*xmin,oy=H/2;
+ const T=(x,y)=>[ox+sc*x,oy-sc*y];const seg=(a,b,col,w,dash)=>{ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;ctx.setLineDash(dash||[]);const A=T(...a),B=T(...b);ctx.moveTo(A[0],A[1]);ctx.lineTo(B[0],B[1]);ctx.stroke();ctx.setLineDash([]);};
+ seg([xmin,0],[xmax,0],C.light,1,[4,4]);ctx.fillStyle=C.muted;ctx.font='12px system-ui, sans-serif';ctx.fillText('centreline',T(xmax,0)[0]-62,oy-6);
+ for(const s of[1,-1]){seg([xA,s*yA],[xB,s*yB],C.ink,2.2);
+  if(P){const far=Math.abs(t)<0.5?[xA,s*yA]:(t<0?[xA,s*yA]:[xB,s*yB]);seg(P,far,C.ink,0.8,[4,4]);}else seg([xA-1.5,s*yA],[xB+1.5,s*yB],C.ink,0.8,[4,4]);
+  const a=T(xA,s*yA),b=T(xB,s*yB);ctx.fillStyle=C.ink;ctx.beginPath();ctx.arc(a[0],a[1],3.5,0,7);ctx.fill();ctx.beginPath();ctx.arc(b[0],b[1],3.5,0,7);ctx.fill();
+  ctx.fillStyle=C.muted;ctx.fillText(s>0?'A':'A′',a[0]-4,a[1]+(s>0?-8:16));ctx.fillText(s>0?'B':'B′',b[0]-4,b[1]+(s>0?-8:16));}
+ if(P){const p=T(...P);ctx.fillStyle=C.seam;ctx.beginPath();ctx.arc(p[0],p[1],4.5,0,7);ctx.fill();ctx.fillText('P',p[0]+7,p[1]-7);}
+ else{ctx.fillStyle=C.ruling;ctx.font='13px system-ui, sans-serif';ctx.fillText('parallel: generalized cylinder, rulings ∥ B−A, apex at infinity',T(xA,0)[0]-40,oy+H/2-12);}
+ g('f2info').textContent=cyl?'y_A = y_B  →  cylinder branch (rulings parallel to B−A, no apex)':
+  't = −y_A/(y_B−y_A) = '+fmt(t,3)+'    P = A + t(B−A) = (x '+fmt(P[0])+', y 0)'+(t<0?'   (forward of A: the cone widens aft)':t>1?'   (aft of B: the cone narrows aft)':'   (between A and B: the segment crosses the centreline)');}
+wireSliders(['f2ya','f2yb'],drawF2);drawF2();
+
+// ---------------------------------------------------------------- fig 3: one cone and its master frame
+let f3frame=null;
+const f3=new View3D('f3',()=>{showVals(['f3d']);const fr=f3frame(),d=val('f3d');const ch=coneChain(V,2,fr,V[2][2]-d,null,null);const it=[];const q=ch.segs[1];
+ const ext=g('f3ext').checked;const A=ch.sec[1],B=ch.sec[2];
+ for(let k=0;k<NU;k+=2){const c=clipSeg(A[k],B[k]);if(!c)continue;both(it,c,C.ruling,0.8);if(ext&&k%4===0)it.push({t:'poly',pts:[c[1],q.P],col:C.ruling,w:0.5,dash:[2,4]});}
+ for(let i=1;i<4;i++)both(it,clipPoly(A.map((Q,k)=>lerp(Q,B[k],i/4))),C.light,0.9);
+ both(it,clipPoly(B.map((Q,k)=>lerp(A[k],Q,1.4))),C.light,0.9,[3,3]);
+ both(it,clipPoly(A),C.seam,1.6);both(it,clipPoly(B),C.master,2.6);
+ it.push({t:'poly',pts:[ch.kv[1],ch.kv[2]],col:C.keel,w:2});if(ext)it.push({t:'poly',pts:[ch.kv[1],q.P],col:C.keel,w:0.8,dash:[4,4]});
+ both(it,[V[1],V[2]],C.ink,2.4);both(it,V,C.light,1);
+ it.push({t:'poly',pts:[V[1],q.P],col:C.ink,w:0.8,dash:[4,4]});it.push({t:'poly',pts:[mirror(V[1]),q.P],col:C.ink,w:0.8,dash:[4,4]});
+ it.push({t:'pt',p:q.P,col:C.ink,label:'P1'});it.push({t:'pt',p:B[0],col:C.master,r:0.1,label:'master frame at V2',lcol:C.master,dy:14});
+ const chord=deg(Math.atan2(V[2][2]-ch.kv[2][2],V[2][1]));
+ g('f3info').textContent='apex P1 = (x '+fmt(q.P[0])+', z '+fmt(q.P[2])+')   keel line under V1–V2: slope '+fmt(100*ch.lines[1].s,1)+' %   keel drop at V1 (derived) '+fmt(V[1][2]-ch.kv[1][2])+'\nframe chord angle (deadrise of the straight V) '+fmt(chord,1)+'°;  keel knuckle in every frame '+fmt(2*fr.thK,0)+'°;  chine tangent '+(fr.thC<chord-0.5&&fr.aC>0?'below the chord: hollow (flare)':fr.thC>chord+0.5&&fr.aC>0?'above the chord: convex bilge':'along the chord')+'\nsection at station x = master frame scaled about P1 by (x − P1.x)/(V2.x − P1.x)';
+ return it;});
+f3frame=frameControls('f3frame','f3_',()=>f3.draw(),'round');
+wireSliders(['f3d'],()=>f3.draw());g('f3ext').addEventListener('change',()=>{f3.fit=true;f3.draw();});f3.draw();
+
+// ---------------------------------------------------------------- fig 4: building the chain, step by step
+let f4s=1;const F4STEPS=['1. Chine polyline and its mirror','2. Apexes: segments extended to the centreplane','3. Master frame at V2, keel vertex K2','4. Cone V2–V3 (cylinder): slide the frame along V3−V2','5. Cone V3–V4: project the V3 seam through P3','6. Cone V1–V2: project the frame toward P1','7. Stem cone V0–V1: apex is the stem point','8. Keel polyline, seams and folds'];
+const f4=new View3D('f4',()=>{showVals(['f4rk','f4r2']);const rk=val('f4rk'),r2=val('f4r2');const ch=coneChain(V,2,FRAMES.round,V[2][2]-0.35,[0,0,r2,rk,0],null);const st=f4s;const it=[];const{segs,sec,kv}=ch;
+ g('f4step').textContent=F4STEPS[st-1];const pale='#a9c7bd';
+ const cone=(j,cur)=>{const A=sec[j],B=sec[j+1],q=segs[j];for(let k=0;k<NU;k+=2){const c=clipSeg(A[k],B[k]);if(!c)continue;both(it,c,cur?C.ruling:pale,cur?1:0.7);
+   if(cur&&!q.cyl&&k%4===0&&q.P[0]>-8&&q.P[0]<18){const far=q.P[0]<V[j][0]?c[0]:c[1];it.push({t:'poly',pts:[far,q.P],col:C.ruling,w:0.6,dash:[2,4]});}}
+  for(let i=1;i<3;i++)both(it,clipPoly(A.map((Q,k)=>lerp(Q,B[k],i/3))),C.light,0.7);};
+ both(it,V,C.ink,2.2);if(st<=2)V.forEach((p,i)=>it.push({t:'pt',p,col:C.ink,label:'V'+i}));
+ if(st>=2){for(let j=0;j<4;j++){const q=segs[j];if(q.cyl){it.push({t:'poly',pts:[sub(V[2],mul(q.dir,0.6)),add(V[3],mul(q.dir,0.6))],col:C.muted,w:0.8,dash:[6,4],nofit:true});it.push({t:'poly',pts:[mirror(sub(V[2],mul(q.dir,0.6))),mirror(add(V[3],mul(q.dir,0.6)))],col:C.muted,w:0.8,dash:[6,4],nofit:true});continue;}
+   const near=q.P[0]<V[j][0]?V[j]:V[j+1];if(norm(sub(near,q.P))>1e-6){it.push({t:'poly',pts:[near,q.P],col:C.ink,w:0.8,dash:[4,4]});it.push({t:'poly',pts:[mirror(near),q.P],col:C.ink,w:0.8,dash:[4,4]});}
+   it.push({t:'pt',p:q.P,col:C.ink,label:'P'+j});}}
+ if(st>=3){both(it,clipPoly(sec[2]),C.master,2.6);it.push({t:'pt',p:kv[2],col:C.keel,r:4,label:'K2',lcol:C.keel});it.push({t:'pt',p:sec[2][0],col:C.master,r:0.1,label:'master frame',lcol:C.master,dy:14});
+  if(st===3)it.push({t:'poly',pts:[V[2],kv[2],mirror(V[2])],col:C.master,w:0.8,dash:[3,3]});}
+ if(st>=4){cone(2,st===4);both(it,clipPoly(sec[3]),C.seam,1.8);it.push({t:'pt',p:sec[3][0],col:C.seam,r:0.1,label:'seam V3',lcol:C.seam,dy:14});it.push({t:'poly',pts:[kv[2],kv[3]],col:C.keel,w:2});}
+ if(st>=5){cone(3,st===5);both(it,clipPoly(sec[4]),C.muted,1.2);it.push({t:'poly',pts:[kv[3],kv[4]],col:C.keel,w:2});if(st===5)it.push({t:'poly',pts:[kv[3],segs[3].P],col:C.keel,w:0.8,dash:[4,4]});}
+ if(st>=6){cone(1,st===6);both(it,clipPoly(sec[1]),C.seam,1.8);it.push({t:'pt',p:sec[1][0],col:C.seam,r:0.1,label:'seam V1',lcol:C.seam,dy:14});it.push({t:'poly',pts:[kv[1],kv[2]],col:C.keel,w:2});if(st===6)it.push({t:'poly',pts:[kv[1],segs[1].P],col:C.keel,w:0.8,dash:[4,4]});}
+ if(st>=7){cone(0,st===7);it.push({t:'poly',pts:[kv[0],kv[1]],col:C.keel,w:2});}
+ if(st>=8){it.push({t:'poly',pts:kv,col:C.keel,w:2.6});kv.forEach((p,i)=>it.push({t:'pt',p,col:C.keel,r:3.5,label:'K'+i,lcol:C.keel}));}
+ const rng=a=>fmt(Math.min(...a),1)+'–'+fmt(Math.max(...a),1)+'°';
+ const txt=['Given: V0=(0, 0, 0.90) … V4=(10, 0.90, 0.15). Segment V2–V3 has equal half-breadths 1.30.',
+  'P0 = V0 (stem on the centreline).  P1 = (x '+fmt(segs[1].P[0])+', z '+fmt(segs[1].P[2])+') forward of the bow.  V2–V3: no apex, rulings ∥ V3−V2 (dashed grey).  P3 = (x '+fmt(segs[3].P[0])+', z '+fmt(segs[3].P[2])+') aft of the stern.',
+  'K2 = (x '+fmt(kv[2][0])+', z '+fmt(kv[2][2])+'): height authored, rake '+fmt(r2)+' authored. Frame plane through V2, K2 and the mirror of V2'+(Math.abs(r2)>1e-9?' (inclined, because K2 is raked)':' (transverse, because K2 is not raked)')+'. 13 points per half.',
+  'Each frame point Q moves along V3−V2 until it reaches the seam at V3: Q + t·(V3−V2), t = (x_seam − Q.x)/(V3−V2).x. Seam rake '+fmt(rk)+' m: the seam x varies along the ruling (u=0 at the keel).  Keel slope under V2–V3 = chine slope = '+fmt(100*ch.lines[2].s,1)+' %.',
+  'Each point Q of the V3 seam moves along the line P3→Q to the station of V4: Q + t·(Q−P3), t = (x_V4 − Q.x)/(Q.x − P3.x). Both cones contain the seam exactly. Keel line 3 passes through P3 and K3: slope '+fmt(100*ch.lines[3].s,1)+' %, K4 = (10, '+fmt(kv[4][2])+') derived.',
+  'Each frame point moves along P1→Q toward the bow: same formula with the station of V1. Keel line 1 through P1 and K2: slope '+fmt(100*ch.lines[1].s,1)+' %, K1 = ('+fmt(kv[1][0])+', '+fmt(kv[1][2])+') derived.',
+  'Apex P0 = V0, so every ruling of this cone ends at the stem point and the V1 seam collapses to it. K0 = V0 necessarily.',
+  'Keel K0…K4 = ('+kv.map(p=>fmt(p[0])+', '+fmt(p[2])).join(') (')+').  Seam folds: V1 '+rng(ch.seamFold[1])+', V3 '+rng(ch.seamFold[3])+' (the master station V2 is also a seam: '+rng(ch.seamFold[2])+').  Keel knuckles: '+[1,2,3].map(j=>'K'+j+' '+fmt(deg(Math.atan(ch.lines[j].s)-Math.atan(ch.lines[j-1].s)),1)+'°').join(', ')+'.'];
+ let s=txt[st-1];if(ch.warns.length)s+='\nWARNING: '+ch.warns.join('; ');g('f4info').textContent=s;return it;});
+g('f4prev').addEventListener('click',()=>{f4s=Math.max(1,f4s-1);f4.draw();});g('f4next').addEventListener('click',()=>{f4s=Math.min(8,f4s+1);f4.draw();});
+wireSliders(['f4rk','f4r2'],()=>f4.draw());f4.draw();
+
+// ---------------------------------------------------------------- fig 5: creases and sub-division
+const f5=new View3D('f5',()=>{showVals(['f5r','f5b']);const r=val('f5r'),b=val('f5b'),split=g('f5split').checked;
+ const Vc=split?[V[0],V[1],lerp(V[1],V[2],0.5),V[2],V[3],V[4]]:V.slice();const m=split?3:2;
+ const rake=Vc.map(()=>0),bul=Vc.map(()=>0);rake[m]=r;bul[m]=b;
+ const ch=coneChain(Vc,m,FRAMES.round,V[2][2]-0.35,rake,bul);const it=chainItems(ch,{ext:false,labels:false});
+ if(split){both(it,clipPoly(ch.sec[2]),C.muted,1.6,[4,3]);it.push({t:'pt',p:ch.sec[2][0],col:C.muted,r:0.1,label:'split seam',dy:14});}
+ it.push({t:'pt',p:ch.sec[m][0],col:C.seam,r:0.1,label:'seam V2 (master frame)',lcol:C.seam,dy:14});
+ const rng=a=>fmt(Math.min(...a),1)+'–'+fmt(Math.max(...a),1)+'°';
+ const names=split?['V1','split','V2','V3']:['V1','V2','V3'];let s='';
+ for(let v=1;v<ch.N;v++){const a=ch.seamFold[v];s+='seam '+names[v-1]+': fold '+rng(a)+(v===m?'  (chine end '+fmt(a[0],1)+'°, keel end '+fmt(a[KI],1)+'°)':'')+'\n';}
+ const kn=[];for(let j=1;j<ch.N;j++)kn.push('K'+j+' '+fmt(deg(Math.atan(ch.lines[j].s)-Math.atan(ch.lines[j-1].s)),1)+'°');
+ s+='keel knuckles (change of keel slope at each keel vertex): '+kn.join('  ')+'\n';
+ s+='keel vertices: '+ch.kv.map(p=>'('+fmt(p[0])+', '+fmt(p[2])+')').join(' ');
+ if(split)s+='\nthe two sub-cones share apex P1: identical surface, zero fold at the split, no keel vertex there';
+ if(ch.warns.length)s+='\nWARNING: '+ch.warns.join('; ');g('f5info').textContent=s;return it;});
+wireSliders(['f5r','f5b'],()=>f5.draw());g('f5split').addEventListener('change',()=>f5.draw());f5.draw();
+
+// ---------------------------------------------------------------- fig 6: conditioning of height authoring (profile)
+function drawF6(){showVals(['f6z'],3);const z1=val('f6z');const[ctx,W,H]=prep(g('f6'));
+ const ch0=coneChain(V,2,FRAMES.round,V[2][2]-0.35,null,null);const P1=ch0.segs[1].P;const s2=(V[3][2]-V[2][2])/(V[3][0]-V[2][0]);const K3=[7.5,0,V[3][2]-0.35];
+ const line2=x=>K3[2]+s2*(x-K3[0]);
+ const solve=z=>{const s1=(z-P1[2])/(2.5-P1[0]);const x=(K3[2]-s2*K3[0]-z+s1*2.5)/(s1-s2);return{x,z:line2(x),s1};};
+ const K2=solve(z1),Kp=solve(z1+0.01),Km=solve(z1-0.01);const dxdz=(Kp.x-Km.x)/0.02;
+ const knuckle=deg(Math.atan(s2)-Math.atan(K2.s1));
+ const rakeZ1=x2=>{const z2=line2(x2);return P1[2]+(z2-P1[2])*(2.5-P1[0])/(x2-P1[0]);};const dzdx=(rakeZ1(5.05)-rakeZ1(4.95))/0.1;
+ const xmin=-3,xmax=11,zmin=-0.9,zmax=1.3;const sc=Math.min((W-30)/(xmax-xmin),(H-40)/(zmax-zmin));const ox=15-sc*xmin,oy=H-25+sc*zmin;
+ const T=(x,z)=>[ox+sc*x,oy-sc*z];const seg=(a,b,col,w,dash)=>{ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;ctx.setLineDash(dash||[]);const A=T(...a),B=T(...b);ctx.moveTo(A[0],A[1]);ctx.lineTo(B[0],B[1]);ctx.stroke();ctx.setLineDash([]);};
+ const dotp=(x,z,col,r,lab,dx,dz)=>{const p=T(x,z);ctx.fillStyle=col;ctx.beginPath();ctx.arc(p[0],p[1],r,0,7);ctx.fill();if(lab){ctx.fillStyle=col;ctx.fillText(lab,p[0]+(dx||6),p[1]+(dz||-7));}};
+ ctx.font='12px system-ui, sans-serif';
+ for(const x of[2.5,5,7.5])seg([x,zmin],[x,zmax],C.light,1,[3,4]);ctx.fillStyle=C.muted;ctx.fillText('V1 station',T(2.5,zmax)[0]+3,T(0,zmax)[1]+12);ctx.fillText('V2 station',T(5,zmax)[0]+3,T(0,zmax)[1]+12);ctx.fillText('V3 station',T(7.5,zmax)[0]+3,T(0,zmax)[1]+12);
+ ctx.beginPath();ctx.strokeStyle=C.light;ctx.lineWidth=1.5;V.forEach((p,i)=>{const q=T(p[0],p[2]);i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]);});ctx.stroke();
+ seg([P1[0],P1[2]],[10,P1[2]+K2.s1*(10-P1[0])],C.keel,1,[5,4]);seg([xmin,line2(xmin)],[xmax,line2(xmax)],C.keel,1,[5,4]);
+ dotp(P1[0],P1[2],C.ink,3.5,'P1');dotp(2.5,z1,C.keel,4,'K1 (authored)');dotp(K3[0],K3[2],C.keel,4,'K3 (fixed)');
+ const inHull=K2.x>2.5&&K2.x<7.5;
+ if(isFinite(K2.x)&&Math.abs(K2.x)<50){const a=T(Math.max(xmin,Math.min(xmax,Km.x)),Km.z),b=T(Math.max(xmin,Math.min(xmax,Kp.x)),Kp.z);ctx.strokeStyle=C.warn;ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();
+  if(Math.abs(K2.x)<xmax)dotp(K2.x,K2.z,inHull?C.keel:C.warn,4.5,'K2 = intersection',6,16);}
+ ctx.fillStyle=C.warn;ctx.fillText('bar: K2 for K1 ± 1 cm',T(xmin,zmin)[0]+6,T(0,zmin)[1]-6);
+ let s='knuckle angle between the two keel lines at K2: '+fmt(knuckle,2)+'°\nheights authored: K2 lands at x = '+fmt(K2.x)+(inHull?'':'  (OFF THE HULL: outside V1–V3)')+';  1 cm on K1 moves K2 fore-and-aft by '+fmt(Math.abs(dxdz),1)+' cm\n';
+ s+='rake authored instead (K2 placed at x=5 and slid): 10 cm of K2 rake changes the derived K1 height by '+fmt(Math.abs(dzdx)*0.1*1000,1)+' mm';
+ g('f6info').textContent=s;}
+wireSliders(['f6z'],drawF6);drawF6();window.addEventListener('resize',drawF6);
+
+// ---------------------------------------------------------------- fig 7: the design (page 04) + unrolled plates
+function clipSegT(a,b){const ya=a[1],yb=b[1];if(ya>=-1e-9&&yb>=-1e-9)return[a,b,0,1];if(ya<0&&yb<0)return null;const t=ya/(ya-yb);const c=lerp(a,b,t);return ya>=0?[a,c,0,t]:[c,b,t,1];}
+const lerp2=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
+function unrollPatch(ch,j){const A=ch.sec[j],B=ch.sec[j+1],q=ch.segs[j],Vc=ch.V;const ua=[],ub=[];
+ if(q.cyl){const dh=unit(q.dir);let s=0;const across=[];for(let k=0;k<NU;k++){if(k>0){const e=sub(A[k],A[k-1]);const along=dot(e,dh);s+=Math.sqrt(Math.max(0,norm(e)**2-along*along));}across.push(s);}
+  for(let k=0;k<NU;k++){ua.push([dot(sub(A[k],Vc[j]),dh),across[k]]);ub.push([dot(sub(B[k],Vc[j]),dh),across[k]]);}return[ua,ub];}
+ let phi=0;const phis=[],rs=[],rb=[];let prev=null;
+ for(let k=0;k<NU;k++){const r=norm(sub(A[k],q.P)),r2=norm(sub(B[k],q.P)),dd=r2>r?sub(B[k],q.P):sub(A[k],q.P),u=mul(dd,1/Math.max(r,r2));
+  if(prev)phi+=Math.acos(Math.min(1,dot(u,prev)));prev=u;phis.push(phi);rs.push(r);rb.push(r2);}
+ const sgn=q.P[0]<=Vc[j][0]+1e-9?1:-1;
+ for(let k=0;k<NU;k++){ua.push([sgn*rs[k]*Math.cos(phis[k]),rs[k]*Math.sin(phis[k])]);ub.push([sgn*rb[k]*Math.cos(phis[k]),rb[k]*Math.sin(phis[k])]);}
+ return[ua,ub];}
+function drawUnrolled(ch,cvId,showRul){const[ctu,W,H]=prep(g(cvId));const m=ch.m,N=ch.N;const plates=[];
+ for(let j=0;j<N;j++){const[ua,ub]=unrollPatch(ch,j);const A=ch.sec[j],B=ch.sec[j+1];const segsU=[],kl=[];
+  for(let k=0;k<NU;k++){const c=clipSegT(A[k],B[k]);if(!c)continue;const p=[lerp2(ua[k],ub[k],c[2]),lerp2(ua[k],ub[k],c[3])];segsU.push({k,p});
+   if(A[k][1]*B[k][1]<0)kl.push(c[2]>0?p[0]:p[1]);else if(Math.abs(A[k][1])<1e-7&&Math.abs(B[k][1])<1e-7){kl.push(p[0]);kl.push(p[1]);}}
+  const seamU=(pts3,ptsU)=>{const out=[];for(let k=0;k<NU;k++){if(pts3[k][1]>=-1e-9)out.push(ptsU[k]);else{if(k>0){const t=pts3[k-1][1]/(pts3[k-1][1]-pts3[k][1]);out.push(lerp2(ptsU[k-1],ptsU[k],t));}break;}}return out;};
+  const sa=seamU(A,ua),sb=seamU(B,ub);const all=segsU.flatMap(s=>s.p).concat(sa,sb);
+  plates.push({j,segsU,sa,sb,kl,mnx:Math.min(...all.map(p=>p[0])),mxx:Math.max(...all.map(p=>p[0])),mny:Math.min(...all.map(p=>p[1])),mxy:Math.max(...all.map(p=>p[1]))});}
+ let xoff=0;const gap=0.4,gmn=Math.min(...plates.map(p=>p.mny)),gmx=Math.max(...plates.map(p=>p.mxy));
+ for(const p of plates){p.off=xoff-p.mnx;xoff+=p.mxx-p.mnx+gap;}
+ const sc2=Math.min((W-30)/xoff,(H-40)/Math.max(gmx-gmn,0.3));const ox=15,oy=H/2-sc2*(gmn+gmx)/2+6;
+ const T=(p,off)=>[ox+sc2*(p[0]+off),oy+sc2*p[1]];
+ const poly=(pts,off,col,w)=>{if(pts.length<2)return;ctu.beginPath();ctu.strokeStyle=col;ctu.lineWidth=w;pts.forEach((p,i)=>{const q=T(p,off);i?ctu.lineTo(q[0],q[1]):ctu.moveTo(q[0],q[1]);});ctu.stroke();};
+ ctu.font='12px system-ui, sans-serif';
+ for(const p of plates){const j=p.j;if(showRul)for(const s of p.segsU)if(s.k%2===0)poly(s.p,p.off,C.ruling,0.6);
+  const chn=p.segsU.find(s=>s.k===0);if(chn)poly(chn.p,p.off,C.ink,1.8);poly(p.kl,p.off,C.keel,1.8);
+  poly(p.sa,p.off,j===m?C.master:(j>0?C.seam:C.muted),j===m?2.2:1.6);poly(p.sb,p.off,j+1===m?C.master:(j+1<N?C.seam:C.muted),j+1===m?2.2:1.6);
+  const q=T([p.mnx,p.mny],p.off);ctu.fillStyle=C.muted;ctu.fillText('V'+j+'–V'+(j+1),q[0]+4,q[1]-8);}}
+let f7frame=null;const f7ids=['f7kz','f7r1','f7r2','f7r3','f7b1','f7b2','f7b3'];
+const f7=new View3D('f7',()=>{showVals(f7ids);const m=+g('f7m').value;const fr=f7frame();const ch=coneChain(V,m,fr,val('f7kz'),[0,val('f7r1'),val('f7r2'),val('f7r3'),0],[0,val('f7b1'),val('f7b2'),val('f7b3'),0]);
+ const it=chainItems(ch,{ext:g('f7ext').checked,rul:g('f7rul').checked});let s='';
+ for(let j=0;j<ch.N;j++){const q=ch.segs[j];s+='cone V'+j+'–V'+(j+1)+': '+(q.cyl?'cylinder (apex at infinity)':'apex x='+fmt(q.P[0])+' z='+fmt(q.P[2]))+'   keel slope '+fmt(100*ch.lines[j].s,1)+' %\n';}
+ s+='keel vertices: '+ch.kv.map((p,i)=>'K'+i+'=('+fmt(p[0])+', '+fmt(p[2])+')').join('  ')+'\n';
+ s+='derived keel drop below chine: '+ch.kv.map((p,i)=>'K'+i+' '+fmt(V[i][2]-p[2])).join('  ')+'\n';
+ for(let v=1;v<ch.N;v++){const a=ch.seamFold[v];s+='seam V'+v+' fold '+fmt(Math.min(...a),1)+'–'+fmt(Math.max(...a),1)+'°'+(v===m?'  (master frame; bulge ignored)':'')+'\n';}
+ if(fr.thK>0&&fr.aK>0)s+='keel knuckle in every frame (from the keel tangent angle): '+fmt(2*fr.thK,0)+'°\n';
+ for(const w of ch.warns)s+='WARNING: '+w+'\n';g('f7info').textContent=s;drawUnrolled(ch,'f7u',g('f7rul').checked);return it;});
+f7frame=frameControls('f7frame','f7_',()=>f7.draw(),'round');
+function f7reset(){const m=+g('f7m').value;g('f7kz').value=(V[m][2]-0.35).toFixed(2);['f7r1','f7r2','f7r3','f7b1','f7b2','f7b3'].forEach(id=>g(id).value=0);f7.draw();}
+wireSliders(f7ids,()=>f7.draw());g('f7m').addEventListener('change',f7reset);g('f7reset').addEventListener('click',f7reset);
+g('f7rul').addEventListener('change',()=>f7.draw());g('f7ext').addEventListener('change',()=>{f7.fit=true;f7.draw();});
+f7reset();
+
+// ---------------------------------------------------------------- fig 8: refinement (folds) + Michell results
+function smoothChine(x){const s=Math.sin(Math.PI*x/10);return[x,x>0&&x<10?1.3*Math.pow(s,0.8):0,0.9-1.1*Math.pow(Math.max(s,0),0.9)+0.05*x/10];}
+function refined(n){const Vc=[];for(let i=0;i<=n;i++)Vc.push(smoothChine(10*i/n));const m=n>>1;return coneChain(Vc,m,FRAMES.round,Vc[m][2]-0.35,null,null);}
+const f8sum={};for(const n of[4,8,16,32,64]){const ch=refined(n);let sum=0,mx=0;for(let v=1;v<n;v++){const a=ch.seamFold[v][KI];sum+=a;mx=Math.max(mx,a);}f8sum[n]={sum,mx};}
+// Michell wave-resistance ratios R_w(N)/R_w(256) from experiments/michell_refinement.py (2026-09-09)
+const MICHELL={Fr:[0.20,0.25,0.30,0.35,0.40,0.50],N:[4,8,16,32,64],ratio:{4:[2.664,1.113,1.140,0.943,0.877,0.847],8:[0.976,0.970,0.985,0.977,0.964,0.957],16:[0.994,0.993,0.997,0.994,0.991,0.989],32:[0.998,0.998,0.999,0.999,0.998,0.997],64:[0.999,0.999,1.000,1.000,0.999,0.999]}};
+const f8=new View3D('f8',()=>{const n=+g('f8n').value;const ch=refined(n);const it=chainItems(ch,{ext:false,apex:false,labels:false,rul:n<=32});
+ const mi=MICHELL.ratio[n];
+ g('f8info').textContent=n+' segments: keel fold per seam max '+fmt(f8sum[n].mx,2)+'°, sum over all seams '+fmt(f8sum[n].sum,1)+'°   ('+[4,8,16,32,64].map(k=>k+': '+fmt(f8sum[k].sum,0)+'°').join('  ')+')\n'+
+  'Michell R_w('+n+') / R_w(smooth limit): '+MICHELL.Fr.map((f,i)=>'Fr '+f.toFixed(2)+': '+mi[i].toFixed(3)).join('   ')+'\n(fold at the keel point of each seam; round-bilge master frame, drop 0.35)';
+ drawF8b();return it;});
+function drawF8b(){const[ctx,W,H]=prep(g('f8b'));const ns=[4,8,16,32,64],n=+g('f8n').value;ctx.font='11px system-ui, sans-serif';
+ // top: fold sums
+ const H1=H*0.48,mx=Math.max(...ns.map(k=>f8sum[k].sum))*1.2,bw=(W-60)/ns.length;
+ ctx.strokeStyle=C.light;ctx.beginPath();ctx.moveTo(40,H1-22);ctx.lineTo(W-10,H1-22);ctx.moveTo(40,8);ctx.lineTo(40,H1-22);ctx.stroke();
+ ns.forEach((k,i)=>{const h=(H1-40)*f8sum[k].sum/mx;ctx.fillStyle=k===n?C.keel:C.light;ctx.fillRect(45+i*bw+bw*0.15,H1-22-h,bw*0.7,h);ctx.fillStyle=C.ink;ctx.fillText(fmt(f8sum[k].sum,0)+'°',45+i*bw+bw*0.3,H1-27-h);ctx.fillStyle=C.muted;ctx.fillText(k,45+i*bw+bw*0.45,H1-9);});
+ ctx.fillStyle=C.muted;ctx.fillText('sum of keel folds vs segments',46,14);
+ // bottom: Michell ratios, log N
+ const y0=H1+14,y1=H-28,lo=0.8,hi=1.2;const xs=k=>45+(W-60)*(Math.log2(k)-2)/4+bw*0.5,ys=r=>y1-(y1-y0)*(Math.min(hi,Math.max(lo,r))-lo)/(hi-lo);
+ ctx.strokeStyle=C.light;ctx.beginPath();ctx.moveTo(40,y0);ctx.lineTo(40,y1);ctx.lineTo(W-10,y1);ctx.stroke();
+ ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(40,ys(1));ctx.lineTo(W-10,ys(1));ctx.stroke();ctx.setLineDash([]);
+ ctx.fillStyle=C.muted;for(const r of[0.8,0.9,1.0,1.1,1.2])ctx.fillText(r.toFixed(1),12,ys(r)+4);ns.forEach(k=>ctx.fillText(k,xs(k)-6,H-12));ctx.fillText('Michell R_w(N) / R_w(smooth)',46,y0+10);
+ const cols={0.25:C.master,0.35:C.seam,0.50:C.fwd};
+ for(const Fr of[0.25,0.35,0.50]){const i=MICHELL.Fr.indexOf(Fr);ctx.strokeStyle=cols[Fr];ctx.lineWidth=1.8;ctx.beginPath();ns.forEach((k,j)=>{const r=MICHELL.ratio[k][i];const p=[xs(k),ys(r)];j?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]);});ctx.stroke();
+  ns.forEach(k=>{const r=MICHELL.ratio[k][i];ctx.fillStyle=cols[Fr];ctx.beginPath();ctx.arc(xs(k),ys(r),k===n?4:2.5,0,7);ctx.fill();if(r>hi||r<lo)ctx.fillText(r.toFixed(2),xs(k)+5,ys(r)+(r>hi?12:-4));});
+  ctx.fillStyle=cols[Fr];ctx.fillText('Fr '+Fr.toFixed(2),W-60,y0+10+14*[0.25,0.35,0.50].indexOf(Fr));}}
+g('f8n').addEventListener('change',()=>{f8.fit=true;f8.draw();});f8.draw();
+
+// ---------------------------------------------------------------- fig 9: one frame per cone, derived seams
+const F9DEF=[{thK:20,aK:0.35,thC:10,aC:0.35},{thK:10,aK:0.35,thC:40,aC:0.25},{thK:0,aK:0.32,thC:90,aC:0.09},{thK:0,aK:0.2,thC:90,aC:0.05}];
+let f9frs=F9DEF.map(o=>Object.assign({},o)),f9frame=null,f9cur=0,f9loading=false;
+const f9=new View3D('f9',()=>{if(!f9loading)f9frs[f9cur]=f9frame();const ch=multiChain(V,2,f9frs,V[2][2]-0.35,null);const it=[];const{N,cones,seams,bounds,kv,segs}=ch;
+ for(let j=0;j<N;j++){const b=bounds[j];if(g('f9rul').checked)for(let i=0;i<=KI;i+=2){const a=b.fwd[i],c=b.aft[i];if(!a||!c)continue;both(it,[a,c],j===f9cur?C.ruling:'#a9c7bd',j===f9cur?1:0.7);}
+  const fr=[];for(let i=0;i<=KI;i++)fr.push(cones[j].frame(i/KI));both(it,fr,C.master,j===f9cur?2.4:1.2,j===f9cur?[]:[4,3]);}
+ for(let v=1;v<N;v++){const p=seams[v].pts.filter(q=>q);both(it,p,C.seam,2);const tr=[];for(let i=0;i<=KI;i++){const q=cones[v].secAt(V[v][0],i/KI);if(q)tr.push(q);}both(it,tr,C.light,0.8,[2,3]);
+  if(p.length)it.push({t:'pt',p:p[0],col:C.seam,r:0.1,label:'seam V'+v,lcol:C.seam,dy:14});}
+ it.push({t:'poly',pts:kv,col:C.keel,w:2});kv.forEach(p=>it.push({t:'pt',p,col:C.keel,r:3}));both(it,V,C.ink,2.2);
+ for(let j=0;j<N;j++){const q=segs[j];if(q.cyl||q.P[0]<-8||q.P[0]>18)continue;it.push({t:'pt',p:q.P,col:C.ink,label:'P'+j});}
+ it.push({t:'pt',p:cones[f9cur].frame(1),col:C.master,r:0.1,label:'frame of cone V'+f9cur+'–V'+(f9cur+1),lcol:C.master,dy:-8});
+ const mesh=meshMulti(ch,36,24);if(g('f9shade').checked)it.unshift(...meshQuads(mesh,j=>j%2?[190,200,210]:[204,210,216]));
+ drawLines('f9lines',ch,mesh,{butt:[0.3,0.6,0.9,1.2],wlStep:0.15,stStep:0.5,cur:f9cur});
+ let s='';for(let v=1;v<N;v++){const sm=seams[v];s+='seam V'+v+': fore-and-aft excursion up to '+fmt(100*sm.exc,0)+' cm for a section-shape difference of up to '+fmt(100*sm.dz,1)+' cm'+(sm.dz>1e-4?'  (gearing '+fmt(sm.exc/sm.dz,1)+':1)':'')+';  fold '+(sm.fold.length?fmt(Math.min(...sm.fold),1)+'–'+fmt(Math.max(...sm.fold),1)+'°':'n/a')+'\n';}
+ for(const w of ch.warns)s+='WARNING: '+w+'\n';g('f9info').textContent=s;return it;});
+function f9load(){f9loading=true;f9frame.set(f9frs[f9cur]);f9loading=false;}
+f9frame=frameControls('f9frame','f9_',()=>f9.draw(),'round');
+g('f9cone').addEventListener('change',()=>{f9cur=+g('f9cone').value;f9load();f9.draw();});
+g('f9same').addEventListener('click',()=>{const fr=f9frame();f9frs=f9frs.map(()=>Object.assign({},fr));f9.draw();});
+g('f9reset').addEventListener('click',()=>{f9frs=F9DEF.map(o=>Object.assign({},o));f9load();f9.draw();});
+g('f9shade').addEventListener('change',()=>f9.draw());g('f9rul').addEventListener('change',()=>f9.draw());
+f9load();f9.draw();
+</script>
+</body>
+</html>

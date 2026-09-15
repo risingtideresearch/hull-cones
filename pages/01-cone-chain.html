@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conical bottom from a polyline chine</title>
+<style>
+  :root { --ink:#1e2a30; --paper:#f7f6f2; --muted:#7c8a90; --line:#cfd6d9; --ruling:#3aa58a; --seam:#c8512a; --master:#2b6cb0; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:15px/1.55 Georgia, "Times New Roman", serif; }
+  main { max-width:1040px; margin:0 auto; padding:28px 20px 60px; }
+  h1 { font-size:24px; font-weight:normal; margin:0 0 4px; }
+  p.lead { margin:0 0 22px; color:var(--muted); max-width:70ch; }
+  .controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px 28px; margin:0 0 14px; font:13px/1.4 system-ui, sans-serif; }
+  .group h2 { font-size:13px; font-weight:600; margin:0 0 4px; color:var(--ink); }
+  label { display:flex; align-items:center; gap:8px; color:var(--muted); margin:3px 0; }
+  label span.v { min-width:40px; color:var(--ink); font-variant-numeric:tabular-nums; }
+  input[type=range] { flex:1; accent-color:var(--ink); }
+  select, button { font:13px system-ui, sans-serif; padding:4px 10px; border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:4px; cursor:pointer; }
+  button:hover { border-color:var(--ink); }
+  .bar { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; margin:0 0 12px; font:13px system-ui, sans-serif; color:var(--muted); }
+  canvas { width:100%; display:block; background:#fff; border:1px solid var(--line); border-radius:6px; }
+  #c { height:440px; cursor:grab; }
+  #u { height:250px; }
+  .cap { font:13px system-ui, sans-serif; color:var(--muted); margin:16px 0 6px; }
+  #info { font:13px/1.7 ui-monospace, Menlo, Consolas, monospace; color:var(--ink); margin:14px 0 0; white-space:pre; }
+  .note { margin-top:28px; max-width:72ch; color:var(--muted); font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Conical bottom from a polyline chine</h1>
+<p class="lead">Each chine segment and its mirror meet at an apex on the centreplane. The bottom under that segment is a cone from the apex. One master frame fixes the first cone; every seam is a curve drawn on the previous cone, and the next cone is projected through it.</p>
+
+<div class="controls">
+  <div class="group"><h2>Master frame</h2>
+    <label>Fullness <input type="range" id="full" min="0" max="1" step="0.05" value="0.6"><span class="v" id="fullv">0.60</span></label>
+    <label>Keel drop <input type="range" id="drop" min="0" max="0.8" step="0.05" value="0.35"><span class="v" id="dropv">0.35</span></label>
+    <label>Station <select id="master"><option value="1">V1</option><option value="2" selected>V2</option><option value="3">V3</option></select></label>
+  </div>
+  <div id="seamctl" style="display:contents"></div>
+</div>
+
+<div class="bar">
+  <button id="bIso">Perspective</button>
+  <button id="bPlan">Plan</button>
+  <button id="bProf">Profile</button>
+  <button id="bBody">Body plan</button>
+  <label><input type="checkbox" id="rul" checked> rulings</label>
+  <label><input type="checkbox" id="ext"> extend rulings to apex</label>
+  <span>drag the 3D view to orbit</span>
+</div>
+
+<canvas id="c"></canvas>
+<p class="cap">Unrolled plates, bow at left. Seams in orange, master frame in blue. Plates share a scale but are not aligned to each other.</p>
+<canvas id="u"></canvas>
+<div id="info"></div>
+
+<p class="note">Seam definition along each ruling, u = 0 at keel and 1 at chine: x = x<sub>B</sub> + a(1 − u) + b·4u(1 − u). Keel shift is a, mid bulge is b. With both at zero the seam is the transverse plane through the chine vertex. The fold angle is measured between the tangent planes of the two cones along the seam.</p>
+</main>
+
+<script>
+const V=[[0,0,0.9],[2.5,0.85,0.35],[5,1.3,0.1],[7.5,1.3,0.05],[10,0.9,0.15]];
+const N=V.length-1,NP=13;
+const C={ink:'#1e2a30',muted:'#7c8a90',light:'#b9c3c8',ruling:'#3aa58a',seam:'#c8512a',master:'#2b6cb0'};
+function segInfo(j){const A=V[j],B=V[j+1],dy=B[1]-A[1];
+ if(Math.abs(dy)<1e-6)return{cyl:true,dir:[B[0]-A[0],0,B[2]-A[2]]};
+ const t=-A[1]/dy;return{cyl:false,P:[A[0]+t*(B[0]-A[0]),0,A[2]+t*(B[2]-A[2])]};}
+const segs=[];for(let j=0;j<N;j++)segs.push(segInfo(j));
+const rdir=(j,Q)=>{const s=segs[j];return s.cyl?s.dir:[Q[0]-s.P[0],Q[1]-s.P[1],Q[2]-s.P[2]];};
+const sc=document.getElementById('seamctl');let h='';
+for(const v of[1,2,3]){h+='<div class="group"><h2>Seam V'+v+' <span id="lab'+v+'" style="font-weight:normal;color:#7c8a90"></span></h2>'+
+ '<label>Keel shift <input type="range" id="a'+v+'" min="-0.8" max="0.8" step="0.05" value="0"><span class="v" id="a'+v+'v">0.00</span></label>'+
+ '<label>Mid bulge <input type="range" id="b'+v+'" min="-0.5" max="0.5" step="0.05" value="0"><span class="v" id="b'+v+'v">0.00</span></label></div>';}
+sc.innerHTML=h;
+const g=id=>document.getElementById(id);
+function seamX(v,u){const ea=g('a'+v),eb=g('b'+v);const a=ea?+ea.value:0,b=eb?+eb.value:0;return V[v][0]+a*(1-u)+b*4*u*(1-u);}
+function cutFree(j,Q,v,u){const d=rdir(j,Q);const t=(seamX(v,u)-Q[0])/d[0];return[Q[0]+t*d[0],Q[1]+t*d[1],Q[2]+t*d[2]];}
+const uOf=k=>Math.abs(k-(NP-1))/(NP-1);
+function masterFrame(m,f,d){const yc=V[m][1],zc=V[m][2],x=V[m][0],zk=zc-d;
+ const K=[0,zk],Cc=[yc,zc],mid=[yc/2,(zc+zk)/2],ctl=[mid[0]+f*(yc-mid[0]),mid[1]+f*(zk-mid[1])];
+ const half=[];for(let i=0;i<NP;i++){const uu=i/(NP-1),a=(1-uu)*(1-uu),b=2*uu*(1-uu),c=uu*uu;half.push([x,a*K[0]+b*ctl[0]+c*Cc[0],a*K[1]+b*ctl[1]+c*Cc[1]]);}
+ const full=[];for(let i=NP-1;i>0;i--)full.push([x,-half[i][1],half[i][2]]);for(let i=0;i<NP;i++)full.push(half[i]);return full;}
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const norm=a=>Math.hypot(a[0],a[1],a[2]);const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+function foldAngles(sec,v){const R=sec[v],out=[];for(let k=1;k<R.length-1;k++){const T=sub(R[k+1],R[k-1]);
+ const n1=cross(rdir(v-1,R[k]),T),n2=cross(rdir(v,R[k]),T);const c=Math.abs(n1[0]*n2[0]+n1[1]*n2[1]+n1[2]*n2[2])/(norm(n1)*norm(n2));out.push(Math.acos(Math.min(1,c))*180/Math.PI);}return out;}
+let sec=[];
+function build(){const m=+g('master').value,f=+g('full').value,d=+g('drop').value;sec=[];sec[m]=masterFrame(m,f,d);
+ for(let j=m;j<N;j++)sec[j+1]=sec[j].map((Q,k)=>j+1<N?cutFree(j,Q,j+1,uOf(k)):cutFree(j,Q,j+1,1));
+ for(let j=m-1;j>=0;j--)sec[j]=sec[j+1].map((Q,k)=>j>0?cutFree(j,Q,j,uOf(k)):cutFree(j,Q,j,1));
+ for(const v of[1,2,3])g('lab'+v).textContent=v===m?'(master frame, planar; sliders ignored)':'';
+ let s='';for(let j=0;j<N;j++){const q=segs[j];s+='cone V'+j+'-V'+(j+1)+': '+(q.cyl?'cylinder (apex at infinity)':'apex x='+q.P[0].toFixed(2)+'  z='+q.P[2].toFixed(2)+(q.P[0]<0?'  ('+(-q.P[0]).toFixed(1)+' ahead of stem)':q.P[0]>10?'  ('+(q.P[0]-10).toFixed(1)+' aft of transom)':'  (at the stem)'))+'\n';}
+ for(let v=1;v<N;v++){const a=foldAngles(sec,v);s+='fold along seam V'+v+': '+Math.min(...a).toFixed(1)+' to '+Math.max(...a).toFixed(1)+' deg\n';}
+ g('info').textContent=s;}
+let yaw=-0.7,pitch=0.95,scale=40,cx=0,cy=0,drag=false,lx,ly,fit=true;
+function proj(p){const ca=Math.cos(yaw),sa=Math.sin(yaw),cb=Math.cos(pitch),sb=Math.sin(pitch);
+ const x1=p[0]*ca-p[1]*sa,y1=p[0]*sa+p[1]*ca;return[x1,-(y1*sb+p[2]*cb)];}
+const cv=g('c'),ctx=cv.getContext('2d'),cu=g('u'),ctu=cu.getContext('2d');
+function prep(c,x){const dpr=window.devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight;c.width=W*dpr;c.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,W,H);return[W,H];}
+function draw(){const[W,H]=prep(cv,ctx);const m=+g('master').value;
+ const allPts=[];sec.forEach(s=>s.forEach(p=>allPts.push(p)));if(g('ext').checked)segs.forEach(q=>{if(!q.cyl)allPts.push(q.P)});
+ if(fit){const xs=allPts.map(p=>proj(p));const mnx=Math.min(...xs.map(p=>p[0])),mxx=Math.max(...xs.map(p=>p[0])),mny=Math.min(...xs.map(p=>p[1])),mxy=Math.max(...xs.map(p=>p[1]));
+  scale=Math.min((W-60)/Math.max(mxx-mnx,0.5),(H-50)/Math.max(mxy-mny,0.5));cx=W/2-scale*(mnx+mxx)/2;cy=H/2-scale*(mny+mxy)/2;fit=false;}
+ const S=p=>{const q=proj(p);return[cx+scale*q[0],cy+scale*q[1]];};
+ const line=(a,b,col,w,dash)=>{ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;ctx.setLineDash(dash||[]);const A=S(a),B=S(b);ctx.moveTo(A[0],A[1]);ctx.lineTo(B[0],B[1]);ctx.stroke();ctx.setLineDash([]);};
+ const poly=(pts,col,w)=>{ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;pts.forEach((p,i)=>{const q=S(p);i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]);});ctx.stroke();};
+ if(g('rul').checked)for(let j=0;j<N;j++)for(let k=0;k<sec[j].length;k+=2){line(sec[j][k],sec[j+1][k],C.ruling,0.8);
+   if(g('ext').checked&&!segs[j].cyl&&k%4===0){const far=segs[j].P[0]<V[j][0]?sec[j][k]:sec[j+1][k];line(far,segs[j].P,C.ruling,0.5,[2,4]);}}
+ for(let j=0;j<N;j++)for(let i=1;i<3;i++){const uu=i/3;poly(sec[j].map((Q,k)=>{const R=sec[j+1][k];return[Q[0]+uu*(R[0]-Q[0]),Q[1]+uu*(R[1]-Q[1]),Q[2]+uu*(R[2]-Q[2])];}),C.light,0.7);}
+ for(let j=0;j<=N;j++)poly(sec[j],j===m?C.master:(j>0&&j<N?C.seam:C.muted),j===m?2.5:(j>0&&j<N?1.8:1.2));
+ poly(sec.map(s=>s[NP-1]),C.muted,1);
+ poly(V,C.ink,2.2);poly(V.map(p=>[p[0],-p[1],p[2]]),C.ink,2.2);
+ ctx.font='12px system-ui, sans-serif';
+ for(let j=1;j<N;j++){const q=segs[j];if(q.cyl)continue;const near=q.P[0]<V[j][0]?V[j]:V[j+1];const nearM=[near[0],-near[1],near[2]];
+  line(near,q.P,C.ink,0.8,[4,4]);line(nearM,q.P,C.ink,0.8,[4,4]);const s=S(q.P);ctx.beginPath();ctx.arc(s[0],s[1],3.5,0,7);ctx.fillStyle=C.ink;ctx.fill();ctx.fillStyle=C.muted;ctx.fillText('P'+j,s[0]+6,s[1]-6);}
+ const s0=S(V[0]);ctx.fillStyle=C.muted;ctx.fillText('P0 = stem',s0[0]+6,s0[1]-8);
+ for(let v=1;v<N;v++){const q=S(sec[v][0]);ctx.fillStyle=v===m?C.master:C.seam;ctx.fillText(v===m?'master frame':'seam V'+v,q[0]-24,q[1]+16);}
+ drawUnrolled();}
+function unrollPatch(j){const A=sec[j],B=sec[j+1],q=segs[j],n=A.length;const ua=[],ub=[];
+ if(q.cyl){const dh=q.dir.map(x=>x/norm(q.dir));let s=0;const across=[];for(let k=0;k<n;k++){if(k>0){const e=sub(A[k],A[k-1]);const along=e[0]*dh[0]+e[1]*dh[1]+e[2]*dh[2];s+=Math.sqrt(Math.max(0,norm(e)**2-along*along));}across.push(s);}
+  const mid=across[(n-1)/2];for(let k=0;k<n;k++){const ax=sub(A[k],V[j]),bx=sub(B[k],V[j]);ua.push([ax[0]*dh[0]+ax[1]*dh[1]+ax[2]*dh[2],across[k]-mid]);ub.push([bx[0]*dh[0]+bx[1]*dh[1]+bx[2]*dh[2],across[k]-mid]);}return[ua,ub];}
+ let phi=0;const phis=[],rs=[],rb=[];let prev=null;
+ for(let k=0;k<n;k++){const r=norm(sub(A[k],q.P)),r2=norm(sub(B[k],q.P)),dd=r2>r?sub(B[k],q.P):sub(A[k],q.P),u=dd.map(x=>x/Math.max(r,r2));if(prev){const c=Math.min(1,u[0]*prev[0]+u[1]*prev[1]+u[2]*prev[2]);phi+=Math.acos(c);}prev=u;phis.push(phi);rs.push(r);rb.push(r2);}
+ const pm=phis[(n-1)/2],sgn=q.P[0]<V[j][0]?1:-1;
+ for(let k=0;k<n;k++){ua.push([sgn*rs[k]*Math.cos(phis[k]-pm),rs[k]*Math.sin(phis[k]-pm)]);ub.push([sgn*rb[k]*Math.cos(phis[k]-pm),rb[k]*Math.sin(phis[k]-pm)]);}
+ return[ua,ub];}
+function drawUnrolled(){const[W,H]=prep(cu,ctu);const m=+g('master').value;
+ const patches=[];let xoff=0;const gap=0.4;
+ for(let j=0;j<N;j++){const[ua,ub]=unrollPatch(j);const all=ua.concat(ub);const mn=Math.min(...all.map(p=>p[0])),mx=Math.max(...all.map(p=>p[0]));
+  patches.push({ua:ua.map(p=>[p[0]-mn+xoff,p[1]]),ub:ub.map(p=>[p[0]-mn+xoff,p[1]]),j});xoff+=mx-mn+gap;}
+ const ys=patches.flatMap(p=>p.ua.concat(p.ub).map(q=>q[1]));const mny=Math.min(...ys),mxy=Math.max(...ys);
+ const sc2=Math.min((W-30)/xoff,(H-40)/(mxy-mny));const ox=15,oy=H/2-sc2*(mny+mxy)/2+6;
+ const T=p=>[ox+sc2*p[0],oy+sc2*p[1]];
+ const poly=(pts,col,w)=>{ctu.beginPath();ctu.strokeStyle=col;ctu.lineWidth=w;pts.forEach((p,i)=>{const q=T(p);i?ctu.lineTo(q[0],q[1]):ctu.moveTo(q[0],q[1]);});ctu.stroke();};
+ for(const p of patches){const j=p.j;
+  if(g('rul').checked)for(let k=0;k<p.ua.length;k+=2)poly([p.ua[k],p.ub[k]],C.ruling,0.6);
+  poly([p.ua[0],p.ub[0]],C.ink,1.8);poly([p.ua[p.ua.length-1],p.ub[p.ub.length-1]],C.ink,1.8);
+  poly(p.ua,j===m?C.master:(j>0?C.seam:C.muted),j===m?2.2:1.6);poly(p.ub,j+1===m?C.master:(j+1<N?C.seam:C.muted),j+1===m?2.2:1.6);
+  const q=T(p.ua[0]);ctu.font='12px system-ui, sans-serif';ctu.fillStyle=C.muted;ctu.fillText('V'+j+'-V'+(j+1),q[0],q[1]-8);}}
+function upd(){g('fullv').textContent=(+g('full').value).toFixed(2);g('dropv').textContent=(+g('drop').value).toFixed(2);
+ for(const v of[1,2,3]){g('a'+v+'v').textContent=(+g('a'+v).value).toFixed(2);g('b'+v+'v').textContent=(+g('b'+v).value).toFixed(2);}build();draw();}
+document.querySelectorAll('input[type=range],select').forEach(e=>e.addEventListener('input',upd));
+g('rul').addEventListener('change',draw);g('ext').addEventListener('change',()=>{fit=true;draw();});
+function preset(a,b){yaw=a;pitch=b;fit=true;draw();}
+g('bIso').onclick=()=>preset(-0.7,0.95);g('bPlan').onclick=()=>preset(0,Math.PI/2);g('bProf').onclick=()=>preset(0,0);g('bBody').onclick=()=>preset(-Math.PI/2,0);
+const dn=e=>{drag=true;const t=e.touches?e.touches[0]:e;lx=t.clientX;ly=t.clientY;};
+const mv=e=>{if(!drag)return;const t=e.touches?e.touches[0]:e;yaw+=(t.clientX-lx)*0.01;pitch+=(t.clientY-ly)*0.01;lx=t.clientX;ly=t.clientY;draw();if(e.cancelable)e.preventDefault();};
+const up=()=>{drag=false;};
+cv.addEventListener('mousedown',dn);window.addEventListener('mousemove',mv);window.addEventListener('mouseup',up);
+cv.addEventListener('touchstart',dn,{passive:false});cv.addEventListener('touchmove',mv,{passive:false});window.addEventListener('touchend',up);
+window.addEventListener('resize',()=>{fit=true;draw();});
+upd();
+</script>
+</body>
+</html>
